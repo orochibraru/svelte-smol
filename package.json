@@ -3,25 +3,24 @@
 	"version": "0.0.0",
 	"type": "module",
 	"private": true,
-	"main": "./dist/index.js",
-	"module": "./dist/index.js",
-	"types": "./dist/index.d.ts",
+	"main": "./index.ts",
+	"module": "./index.ts",
+	"types": "./index.ts",
 	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"default": "./dist/index.js"
-		}
+		".": "./index.ts"
 	},
 	"files": [
-		"dist"
+		"index.ts",
+		"internal.d.ts",
+		"templates"
 	],
 	"scripts": {
-		"build": "bun run scripts/build.ts",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"test": "bun test",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
-		"release": "bun run scripts/release.ts",
+		"release": "semantic-release",
+		"release:dry": "semantic-release --dry-run --no-ci",
 		"prepare": "husky"
 	},
 	"dependencies": {
@@ -29,9 +28,13 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.11",
+		"@saithodev/semantic-release-gitea": "^2.1.0",
+		"@semantic-release/changelog": "^7.0.0",
+		"@semantic-release/git": "^11.0.1",
 		"@sveltejs/kit": "^2.70.3",
 		"@types/bun": "latest",
 		"husky": "^9.1.7",
+		"semantic-release": "^25.0.9",
 		"typescript": "^7"
 	},
 	"peerDependencies": {
