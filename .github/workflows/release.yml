@@ -22,11 +22,15 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Release
         env:
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITEA_TOKEN }}
-
+          NPM_TOKEN: ${{ secrets.GITEA_TOKEN }}
         run: bun run release
