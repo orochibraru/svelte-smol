@@ -35,6 +35,42 @@ test("the published package has no runtime dependencies", async () => {
 	expect(pkg.dependencies ?? {}).toEqual({});
 });
 
+test("`bun run build` emits Node-loadable JS that Node-based consumers import", async () => {
+	const root = fileURLToPath(new URL("..", import.meta.url));
+	const build = Bun.spawnSync(["bun", "run", "build"], {
+		cwd: root,
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+	if (!build.success) {
+		throw new Error(`build failed:\n${build.stderr.toString()}`);
+	}
+
+	const pkg = await Bun.file(`${root}/package.json`).json();
+	const entry = `${root}/${pkg.exports["."].default}`;
+	expect(existsSync(entry)).toBe(true);
+	expect(existsSync(`${root}/${pkg.exports["."].types}`)).toBe(true);
+	// the entry templates must sit next to the emitted entry, not just at the
+	// package root, so `new URL("./templates", import.meta.url)` resolves them
+	expect(existsSync(`${root}/dist/templates/handler.ts`)).toBe(true);
+
+	// load it the way a Node-based SvelteKit config would
+	const node = Bun.spawnSync(
+		[
+			"node",
+			"--input-type=module",
+			"-e",
+			`import(${JSON.stringify(entry)}).then(m => { if (typeof m.default !== "function") process.exit(1); })`,
+		],
+		{ stdout: "pipe", stderr: "pipe" },
+	);
+	if (!node.success) {
+		throw new Error(
+			`node could not import the built entry:\n${node.stderr.toString()}`,
+		);
+	}
+});
+
 for (const mode of modes) {
 	describe(mode.label, () => {
 		const port = 3100 + Math.floor(Math.random() * 800);

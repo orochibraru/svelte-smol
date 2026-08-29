@@ -2,7 +2,7 @@
 	"name": "@orochibraru/svelte-smol",
 	"version": "1.3.2",
 	"type": "module",
-	"main": "./index.ts",
+	"main": "./dist/index.js",
 	"keywords": [
 		"bun",
 		"svelte",
@@ -10,19 +10,20 @@
 		"adapter",
 		"typescript"
 	],
-	"module": "./index.ts",
-	"types": "./index.ts",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
 	"author": {
 		"email": "orochibraru@gmail.com",
 		"name": "orochibraru"
 	},
 	"exports": {
-		".": "./index.ts"
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
 	},
 	"files": [
-		"index.ts",
-		"internal.d.ts",
-		"templates"
+		"dist"
 	],
 	"repository": {
 		"type": "git",
@@ -32,6 +33,8 @@
 		"access": "public"
 	},
 	"scripts": {
+		"build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R templates dist/templates",
+		"prepack": "bun run build",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"test": "bun test index.test.ts",
 		"test:integration": "bun test test/integration.test.ts",
