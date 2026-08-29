@@ -9,10 +9,22 @@ export interface AdapterOptions {
 	 */
 	out?: string;
 	/**
-	 * Filename of the compiled executable, written into `out`.
+	 * Filename of the compiled executable, written into `out`. Ignored when
+	 * {@link AdapterOptions.compile | `compile`} is `false` (the server bundle
+	 * is always `index.js` then).
 	 * @default "server"
 	 */
 	name?: string;
+	/**
+	 * Compile the server to a single standalone executable with
+	 * `bun build --compile`. Turn this off to emit a plain `index.js` bundle
+	 * instead, run with `bun run build/index.js` alongside a `node_modules`
+	 * directory — the only way to ship a dependency with a native (`.node`)
+	 * addon that `bun build --compile` can't embed (`sharp`, `sqlite3`, …).
+	 * The `healthcheck` binary is still compiled either way.
+	 * @default true
+	 */
+	compile?: boolean;
 	/**
 	 * Cross-compilation target for `bun build --compile`, e.g.
 	 * `"bun-linux-x64"`, `"bun-linux-arm64-musl"`, `"bun-darwin-arm64"`,
@@ -96,6 +108,10 @@ const templates = fileURLToPath(new URL("./templates", import.meta.url));
  * Bun runtime (`bun --bun vite build`, or a `bunfig.toml` with `[run] bun =
  * true`); loading the config alone works under Node too.
  *
+ * With {@link AdapterOptions.compile | `compile: false`} it emits a plain
+ * `build/index.js` bundle instead (dependencies external, run with `bun`),
+ * which is the only way to ship a native (`.node`) addon.
+ *
  * Output, all written to {@link AdapterOptions.out | `out`}:
  *
  * ```text
@@ -140,6 +156,7 @@ export default function adapter(options: AdapterOptions = {}): Adapter {
 	const {
 		out = "build",
 		name = "server",
+		compile = true,
 		target,
 		bytecode = false,
 		minify = false,
@@ -209,6 +226,7 @@ export default function adapter(options: AdapterOptions = {}): Adapter {
 						serveAssets,
 						precompress,
 						healthcheck: healthcheckConfig,
+						compiled: compile,
 					}),
 					ENV: "./env.ts",
 					ENV_PREFIX: JSON.stringify(envPrefix),
@@ -231,35 +249,68 @@ export default function adapter(options: AdapterOptions = {}): Adapter {
 				);
 			}
 
-			const compile = async (entrypoint: string, outName: string) => {
-				builder.log.minor(
-					target ? `Compiling ${outName} (${target})` : `Compiling ${outName}`,
-				);
-				const result = await Bun.build({
-					entrypoints: [entrypoint],
-					target: "bun",
-					minify,
-					bytecode,
-					sourcemap: sourcemap ? "linked" : "none",
-					compile: {
-						outfile: `${out}/${outName}`,
-						...(target ? { target } : {}),
-					},
-				});
-
+			const check = (
+				result: Awaited<ReturnType<typeof Bun.build>>,
+				label: string,
+			) => {
 				if (!result.success) {
 					for (const message of result.logs) {
 						builder.log.error(String(message));
 					}
-					throw new Error(`\`bun build --compile\` failed for ${outName}`);
+					throw new Error(`\`bun build\` failed for ${label}`);
 				}
+			};
 
+			const compileBinary = async (entrypoint: string, outName: string) => {
+				builder.log.minor(
+					target ? `Compiling ${outName} (${target})` : `Compiling ${outName}`,
+				);
+				check(
+					await Bun.build({
+						entrypoints: [entrypoint],
+						target: "bun",
+						minify,
+						bytecode,
+						sourcemap: sourcemap ? "linked" : "none",
+						compile: {
+							outfile: `${out}/${outName}`,
+							...(target ? { target } : {}),
+						},
+					}),
+					outName,
+				);
 				builder.log.success(`Compiled ${out}/${outName}`);
 			};
 
-			await compile(entry, name);
+			const bundleServer = async (entrypoint: string) => {
+				builder.log.minor("Bundling index.js");
+				// `packages: "external"` keeps every `node_modules` dependency out
+				// of the bundle so it resolves from disk at runtime — that is what
+				// lets native (`.node`) addons work, which is the whole point of
+				// skipping `--compile`. Ship `node_modules` next to `build/`.
+				check(
+					await Bun.build({
+						entrypoints: [entrypoint],
+						target: "bun",
+						format: "esm",
+						packages: "external",
+						minify,
+						sourcemap: sourcemap ? "linked" : "none",
+						outdir: out,
+						naming: "index.js",
+					}),
+					"index.js",
+				);
+				builder.log.success(`Bundled ${out}/index.js`);
+			};
+
+			if (compile) {
+				await compileBinary(entry, name);
+			} else {
+				await bundleServer(entry);
+			}
 			if (healthcheckConfig) {
-				await compile(`${tmp}/healthcheck.ts`, "healthcheck");
+				await compileBinary(`${tmp}/healthcheck.ts`, "healthcheck");
 			}
 		},
 	};

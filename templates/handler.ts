@@ -11,7 +11,7 @@ const server = new Server(manifest) as SvelteKitServer & {
 	websocket?: () => Bun.WebSocketHandler<undefined> | undefined;
 };
 
-const { serveAssets, precompress, healthcheck } = BUILD_OPTIONS;
+const { serveAssets, precompress, healthcheck, compiled } = BUILD_OPTIONS;
 
 const origin = env("ORIGIN", undefined);
 const xff_depth = Number.parseInt(env("XFF_DEPTH", "1"), 10);
@@ -20,14 +20,17 @@ const protocol_header = env("PROTOCOL_HEADER", "").toLowerCase();
 const host_header = env("HOST_HEADER", "").toLowerCase();
 const port_header = env("PORT_HEADER", "").toLowerCase();
 
-// Static assets and prerendered pages are deployed next to the executable:
-//   <dir>/<binary>
+// Static assets and prerendered pages are deployed next to the server:
+//   <dir>/<server>
 //   <dir>/client/…
 //   <dir>/prerendered/…
-// `ASSETS_DIR` overrides that parent directory (absolute, or relative to the
-// binary). `import.meta.dir` is a virtual path inside a compiled binary, so
-// the real on-disk location comes from `process.execPath`.
-const assets_root = resolve(dirname(process.execPath), env("ASSETS_DIR", ""));
+// `ASSETS_DIR` overrides that parent directory (absolute, or relative to it).
+// In a compiled binary `import.meta.dir` is a virtual path, so the real
+// on-disk location comes from `process.execPath`; in a plain `index.js`
+// bundle `process.execPath` is the `bun` binary, so `import.meta.dir` (the
+// `build/` directory) is the one that's right.
+const self_dir = compiled ? dirname(process.execPath) : import.meta.dir;
+const assets_root = resolve(self_dir, env("ASSETS_DIR", ""));
 const client_dir = `${assets_root}/client${base}`;
 const prerendered_dir = `${assets_root}/prerendered${base}`;
 const immutable_prefix = `${base}/${manifest.appDir}/immutable/`;

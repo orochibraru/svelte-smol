@@ -1,0 +1,23 @@
+# Everything is rebuilt inside the image; keep the build context small.
+.git
+.github
+.vscode
+
+node_modules
+**/node_modules
+
+.svelte-kit
+build
+dist
+coverage
+
+Dockerfile*
+.dockerignore
+compose*.yaml
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log

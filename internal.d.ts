@@ -38,5 +38,6 @@ declare const BUILD_OPTIONS: {
 	serveAssets: boolean;
 	precompress: boolean;
 	healthcheck: false | { path: string };
+	compiled: boolean;
 };
 declare const SERVE_OPTIONS: Record<string, unknown>;

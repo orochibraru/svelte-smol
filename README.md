@@ -46,12 +46,37 @@ relative to its own path, so it can be run from any working directory:
 ./build/server
 ```
 
+### `compile: false`
+
+`bun build --compile` bundles every dependency into the binary, and a native
+(`.node`) addon like `sharp` or `better-sqlite3` can't be bundled that way. Set
+`compile: false` to emit a plain bundle instead:
+
+```text
+build/
+├── index.js       # the server bundle, run with `bun`
+├── healthcheck    # still a compiled binary
+├── client/
+└── prerendered/
+```
+
+Dependencies stay external, so ship `node_modules` next to `build/` (or anywhere
+up the tree) and start it with:
+
+```bash
+bun run ./build/index.js
+```
+
+Everything else — env vars, the `healthcheck` binary, `serveAssets`,
+instrumentation — works the same.
+
 ## Options
 
 ```js
 adapter({
   out: "build", // output directory
   name: "server", // executable filename within `out`
+  compile: true, // false → emit build/index.js (run with `bun`) instead of a binary
   target: undefined, // cross-compile target, e.g. "bun-linux-x64"
   bytecode: false, // embed a V8 bytecode cache (faster cold start, bigger binary)
   minify: false, // minify the bundled server code

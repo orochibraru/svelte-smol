@@ -132,7 +132,41 @@ test("adapt() threads precompress, target and instrumentation through", async ()
 	expect(entry).toStartWith('import "./server/instrumentation.server.js";');
 });
 
-test("adapt() throws when `bun build --compile` fails", async () => {
+test("adapt() with { compile: false } emits an index.js bundle plus the healthcheck binary", async () => {
+	await adapter({ out: join(scratch, "build"), compile: false }).adapt(
+		fakeBuilder(),
+	);
+
+	expect(buildSpy).toHaveBeenCalledTimes(2);
+	const serverCall = buildSpy.mock.calls[0][0] as {
+		compile?: unknown;
+		outdir?: string;
+		naming?: string;
+		packages?: string;
+	};
+	expect(serverCall.compile).toBeUndefined();
+	expect(serverCall.packages).toBe("external");
+	expect(serverCall.naming).toBe("index.js");
+	expect(serverCall.outdir?.endsWith("/build")).toBe(true);
+
+	const healthcheckCall = buildSpy.mock.calls[1][0] as {
+		compile?: { outfile: string };
+	};
+	expect(healthcheckCall.compile?.outfile.endsWith("/build/healthcheck")).toBe(
+		true,
+	);
+});
+
+test("adapt() with { compile: false, healthcheck: false } only bundles index.js", async () => {
+	await adapter({
+		out: join(scratch, "build"),
+		compile: false,
+		healthcheck: false,
+	}).adapt(fakeBuilder());
+	expect(buildSpy).toHaveBeenCalledTimes(1);
+});
+
+test("adapt() throws when `bun build` fails", async () => {
 	buildSpy.mockResolvedValue({
 		success: false,
 		logs: ["boom"],
@@ -141,5 +175,5 @@ test("adapt() throws when `bun build --compile` fails", async () => {
 
 	await expect(
 		adapter({ out: join(scratch, "build") }).adapt(fakeBuilder()),
-	).rejects.toThrow(/bun build --compile/);
+	).rejects.toThrow(/bun build/);
 });
