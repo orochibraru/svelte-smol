@@ -17,7 +17,8 @@
 		"./index.ts",
 		"./index.test.ts",
 		"./templates/**/*.ts",
-		"./test/*.ts"
+		"./test/*.ts",
+		"./scripts/**/*.ts"
 	],
 	"exclude": [
 		"node_modules",

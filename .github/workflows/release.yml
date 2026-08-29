@@ -42,3 +42,25 @@ jobs:
           # publishing (OIDC) is not configured for the package.
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: bun run release
+
+      # semantic-release tags HEAD when it publishes. If it did, point the
+      # example apps at the new version and push that back (skipping CI).
+      - name: Sync example versions
+        run: |
+          version="$(git tag --points-at HEAD | sed -n 's/^v//p' | sort -V | tail -1)"
+          if [ -z "$version" ]; then
+            echo "No release tag on HEAD; nothing to sync."
+            exit 0
+          fi
+          echo "Syncing examples to $version"
+          git checkout -- package.json
+          bun run scripts/bump-examples.ts "$version"
+          if git diff --quiet -- examples; then
+            echo "Examples already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add examples
+          git commit -m "chore: sync examples to v$version [skip ci]"
+          git push origin HEAD:main
