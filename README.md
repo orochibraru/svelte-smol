@@ -1,4 +1,4 @@
-# Svelte Bun Adapter
+# Svelte Smol Adapter
 
 A [SvelteKit](https://svelte.dev/docs/kit) adapter that compiles your app into a
 **single standalone executable** with `bun build --compile`. No `node_modules`,
@@ -14,7 +14,7 @@ bun add -d @orochibraru/svelte-adapter-bun
 
 ```js
 // svelte.config.js
-import adapter from "@orochibraru/svelte-adapter-bun";
+import adapter from "@orochibraru/svelte-smol;
 
 export default {
   kit: {

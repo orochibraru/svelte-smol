@@ -1,10 +1,14 @@
 {
-	"name": "@orochibraru/svelte-adapter-bun",
+	"name": "@orochibraru/svelte-smol",
 	"version": "1.3.0",
 	"type": "module",
 	"main": "./index.ts",
 	"module": "./index.ts",
 	"types": "./index.ts",
+	"author": {
+		"email": "orochibraru@gmail.com",
+		"name": "orochibraru"
+	},
 	"exports": {
 		".": "./index.ts"
 	},
@@ -15,10 +19,10 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://git.ombrage.space/orochibraru/svelte-bun-adapter.git"
+		"url": "https://github.coms/orochibraru/svelte-smol.git"
 	},
 	"publishConfig": {
-		"registry": "https://git.ombrage.space/api/packages/orochibraru/npm/"
+		"access": "public"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",

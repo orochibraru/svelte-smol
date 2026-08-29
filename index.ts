@@ -112,7 +112,7 @@ const templates = fileURLToPath(new URL("./templates", import.meta.url));
  * @example
  * ```js
  * // svelte.config.js
- * import adapter from "@orochibraru/svelte-adapter-bun";
+ * import adapter from "@orochibraru/svelte-smol;
  *
  * export default {
  *   kit: {
