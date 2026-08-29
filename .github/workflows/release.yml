@@ -14,8 +14,14 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   release:
+    name: Release
     needs: validate
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the git tag + create the GitHub Release
+      issues: write # @semantic-release/github success/failure comments
+      pull-requests: write
+      id-token: write # npm provenance + trusted publishing (OIDC)
     steps:
       - uses: actions/checkout@v6
         with:
@@ -31,6 +37,8 @@ jobs:
 
       - name: Release
         env:
-          GITHUB_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
-          NPM_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Set NPM_TOKEN to fall back to token auth when npm trusted
+          # publishing (OIDC) is not configured for the package.
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: bun run release
