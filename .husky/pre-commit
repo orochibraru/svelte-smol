@@ -1,2 +1,4 @@
 bun run test
 bun run lint:fix
+
+git add .
