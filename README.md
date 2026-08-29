@@ -60,12 +60,15 @@ build/
 └── prerendered/
 ```
 
-Dependencies stay external, so ship `node_modules` next to `build/` (or anywhere
-up the tree) and start it with:
-
 ```bash
 bun run ./build/index.js
 ```
+
+Pure-JS dependencies are still bundled into `index.js`. A native addon can't be,
+so its `require` stays in the output and resolves from `node_modules` at runtime
+(looked up from `index.js`'s own location, so the working directory doesn't
+matter). Ship `node_modules` for those — a production install is enough, since
+everything that got bundled needn't be there.
 
 Everything else — env vars, the `healthcheck` binary, `serveAssets`,
 instrumentation — works the same.

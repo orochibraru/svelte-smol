@@ -17,11 +17,12 @@ export interface AdapterOptions {
 	name?: string;
 	/**
 	 * Compile the server to a single standalone executable with
-	 * `bun build --compile`. Turn this off to emit a plain `index.js` bundle
-	 * instead, run with `bun run build/index.js` alongside a `node_modules`
-	 * directory — the only way to ship a dependency with a native (`.node`)
-	 * addon that `bun build --compile` can't embed (`sharp`, `sqlite3`, …).
-	 * The `healthcheck` binary is still compiled either way.
+	 * `bun build --compile`. Turn this off to emit a plain `build/index.js`
+	 * bundle instead, run with `bun run build/index.js`. Pure-JS dependencies
+	 * are still bundled in; a native (`.node`) addon can't be, so it resolves
+	 * from `node_modules` at runtime — which a `bun` process can do and a
+	 * compiled binary can't. This is the only way to ship `sharp`, `sqlite3`
+	 * and the like. The `healthcheck` binary is still compiled either way.
 	 * @default true
 	 */
 	compile?: boolean;
@@ -109,8 +110,8 @@ const templates = fileURLToPath(new URL("./templates", import.meta.url));
  * true`); loading the config alone works under Node too.
  *
  * With {@link AdapterOptions.compile | `compile: false`} it emits a plain
- * `build/index.js` bundle instead (dependencies external, run with `bun`),
- * which is the only way to ship a native (`.node`) addon.
+ * `build/index.js` bundle instead (run with `bun`), the only way to ship a
+ * native (`.node`) addon.
  *
  * Output, all written to {@link AdapterOptions.out | `out`}:
  *
@@ -284,16 +285,17 @@ export default function adapter(options: AdapterOptions = {}): Adapter {
 
 			const bundleServer = async (entrypoint: string) => {
 				builder.log.minor("Bundling index.js");
-				// `packages: "external"` keeps every `node_modules` dependency out
-				// of the bundle so it resolves from disk at runtime — that is what
-				// lets native (`.node`) addons work, which is the whole point of
-				// skipping `--compile`. Ship `node_modules` next to `build/`.
+				// Same bundle as the compiled binary, just emitted as a file. Every
+				// pure-JS dependency is inlined; a native (`.node`) addon can't be,
+				// so its `require` stays in the output and resolves from
+				// `node_modules` at runtime — which is exactly what a plain `bun`
+				// process (unlike a compiled binary) can do. Ship `node_modules`
+				// for those; anything fully bundled needn't be installed.
 				check(
 					await Bun.build({
 						entrypoints: [entrypoint],
 						target: "bun",
 						format: "esm",
-						packages: "external",
 						minify,
 						sourcemap: sourcemap ? "linked" : "none",
 						outdir: out,

@@ -142,10 +142,8 @@ test("adapt() with { compile: false } emits an index.js bundle plus the healthch
 		compile?: unknown;
 		outdir?: string;
 		naming?: string;
-		packages?: string;
 	};
 	expect(serverCall.compile).toBeUndefined();
-	expect(serverCall.packages).toBe("external");
 	expect(serverCall.naming).toBe("index.js");
 	expect(serverCall.outdir?.endsWith("/build")).toBe(true);
 
