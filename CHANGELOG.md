@@ -1,3 +1,10 @@
+# [1.3.0](https://git.ombrage.space/orochibraru/svelte-bun-adapter/compare/v1.2.0...v1.3.0) (2026-08-29)
+
+
+### Features
+
+* binary ([9bbda12](https://git.ombrage.space/orochibraru/svelte-bun-adapter/commit/9bbda12c13adf2d6ec4410b4deec4f3fc6794198))
+
 # [1.2.0](https://git.ombrage.space/orochibraru/svelte-bun-adapter/compare/v1.1.1...v1.2.0) (2026-08-29)
 
 
