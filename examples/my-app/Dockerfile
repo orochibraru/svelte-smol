@@ -10,7 +10,7 @@ COPY . .
 
 RUN bun run build
 
-FROM alpine:latest
+FROM debian:slim
 
 WORKDIR /app
 
