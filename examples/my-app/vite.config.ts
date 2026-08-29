@@ -1,6 +1,6 @@
 import { sveltekit } from "@sveltejs/kit/vite";
 import { defineConfig } from "vite";
-import adapter from "../../";
+import adapter from "../../index.ts";
 
 export default defineConfig({
 	plugins: [

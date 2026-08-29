@@ -8,9 +8,6 @@
 	"exports": {
 		".": "./index.ts"
 	},
-	"workspaces": [
-		"./examples/*"
-	],
 	"files": [
 		"index.ts",
 		"internal.d.ts",

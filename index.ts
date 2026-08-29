@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import type { Adapter, Builder } from "@sveltejs/kit";
 
 export interface AdapterOptions {
@@ -70,8 +71,62 @@ export interface AdapterOptions {
 	serveOptions?: Record<string, unknown>;
 }
 
-const templates = Bun.fileURLToPath(new URL("./templates", import.meta.url));
+// `node:url`, not `Bun.fileURLToPath`: this module is loaded at config-parse
+// time by Node-based tooling too (svelte-check, the Svelte language server,
+// `svelte-kit sync`), where `Bun` is undefined. Everything that actually needs
+// the Bun runtime lives inside `adapt()`.
+const templates = fileURLToPath(new URL("./templates", import.meta.url));
 
+/**
+ * SvelteKit adapter that compiles the app into a single standalone executable
+ * with `bun build --compile`.
+ *
+ * `adapt()` writes the SvelteKit server and this package's entrypoint templates
+ * into a temp directory, then compiles them — `@sveltejs/kit` and every other
+ * pure-JS dependency bundled in — into one binary. The build must run under the
+ * Bun runtime (`bun --bun vite build`, or a `bunfig.toml` with `[run] bun =
+ * true`); loading the config alone works under Node too.
+ *
+ * Output, all written to {@link AdapterOptions.out | `out`}:
+ *
+ * ```text
+ * build/
+ * ├── server        the executable (rename with `name`)
+ * ├── client/       static assets, served by the executable
+ * └── prerendered/  prerendered pages, served by the executable
+ * ```
+ *
+ * The executable resolves `client/` and `prerendered/` from its own location
+ * (`dirname(process.execPath)`, overridable with the `ASSETS_DIR` env var), so
+ * it can run from any working directory. Deploy the whole `out` directory, or
+ * just the binary when {@link AdapterOptions.serveAssets | `serveAssets`} is
+ * off and a proxy/CDN serves the assets.
+ *
+ * Runtime configuration (`HOST`, `PORT`, `ORIGIN`, `BODY_SIZE_LIMIT`, …) is
+ * read from environment variables, optionally namespaced by
+ * {@link AdapterOptions.envPrefix | `envPrefix`}.
+ *
+ * @param options - see {@link AdapterOptions}
+ * @returns the configured SvelteKit {@link Adapter}
+ *
+ * @example
+ * ```js
+ * // svelte.config.js
+ * import adapter from "@orochibraru/svelte-adapter-bun";
+ *
+ * export default {
+ *   kit: {
+ *     adapter: adapter({
+ *       // cross-compile for an Alpine container from any host
+ *       target: "bun-linux-x64-musl",
+ *       bytecode: true,
+ *     }),
+ *   },
+ * };
+ * ```
+ *
+ * @see {@link https://bun.com/docs/bundler/executables | Bun — Single-file executables}
+ */
 export default function adapter(options: AdapterOptions = {}): Adapter {
 	const {
 		out = "build",
