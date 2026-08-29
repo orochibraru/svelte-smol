@@ -4,6 +4,7 @@ const expected = new Set([
 	"SOCKET_PATH",
 	"HOST",
 	"PORT",
+	"ASSETS_DIR",
 	"ORIGIN",
 	"XFF_DEPTH",
 	"ADDRESS_HEADER",

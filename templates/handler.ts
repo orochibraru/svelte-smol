@@ -3,14 +3,15 @@
 import { env } from "ENV";
 import { base, manifest, prerendered } from "MANIFEST";
 import { Server } from "SERVER";
-import { existsSync } from "node:fs";
+import { statSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import type { Server as SvelteKitServer } from "@sveltejs/kit";
 
 const server = new Server(manifest) as SvelteKitServer & {
 	websocket?: () => Bun.WebSocketHandler<undefined> | undefined;
 };
 
-const { serveAssets } = BUILD_OPTIONS;
+const { serveAssets, precompress } = BUILD_OPTIONS;
 
 const origin = env("ORIGIN", undefined);
 const xff_depth = Number.parseInt(env("XFF_DEPTH", "1"), 10);
@@ -19,68 +20,135 @@ const protocol_header = env("PROTOCOL_HEADER", "").toLowerCase();
 const host_header = env("HOST_HEADER", "").toLowerCase();
 const port_header = env("PORT_HEADER", "").toLowerCase();
 
-const client_dir = `${import.meta.dir}/client${base}`;
-const prerendered_dir = `${import.meta.dir}/prerendered`;
+// Static assets and prerendered pages are deployed next to the executable:
+//   <dir>/<binary>
+//   <dir>/client/…
+//   <dir>/prerendered/…
+// `ASSETS_DIR` overrides that parent directory (absolute, or relative to the
+// binary). `import.meta.dir` is a virtual path inside a compiled binary, so
+// the real on-disk location comes from `process.execPath`.
+const assets_root = resolve(dirname(process.execPath), env("ASSETS_DIR", ""));
+const client_dir = `${assets_root}/client${base}`;
+const prerendered_dir = `${assets_root}/prerendered${base}`;
+const immutable_prefix = `${base}/${manifest.appDir}/immutable/`;
 
 await server.init({
 	env: Bun.env as Record<string, string>,
 	read: (file) => Bun.file(`${client_dir}/${file}`).stream(),
 });
 
-function buildStaticRoutes() {
-	const routes: Record<
-		string,
-		Bun.Serve.DirectoryRouteOptions | Bun.BunFile | ((req: Request) => Response)
-	> = {};
+// Pre-compressed sibling files, tried in this order when `precompress` is on.
+const encodings: Array<readonly [token: string, ext: string]> = precompress
+	? [
+			["br", ".br"],
+			["gzip", ".gz"],
+		]
+	: [];
 
-	const immutable_dir = `${client_dir}/${manifest.appDir}/immutable`;
-	if (existsSync(immutable_dir)) {
-		routes[`${base}/${manifest.appDir}/immutable/*`] = { dir: immutable_dir };
+/** `statSync` that yields `undefined` for a missing path or a non-file. */
+function file_stat(path: string) {
+	try {
+		const stat = statSync(path);
+		return stat.isFile() ? stat : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function asset_response(
+	file: string,
+	request: Request,
+	immutable = false,
+): Response | undefined {
+	let stat = file_stat(file);
+	if (!stat) {
+		return undefined;
 	}
 
-	if (existsSync(client_dir)) {
-		const immutable_prefix = `${manifest.appDir}/immutable/`;
-		for (const rel of new Bun.Glob("**/*").scanSync({ cwd: client_dir })) {
-			if (rel.startsWith(immutable_prefix)) {
-				continue; // handled above
-			}
-			routes[`${base}/${rel}`] = Bun.file(`${client_dir}/${rel}`);
+	const headers = new Headers();
+	headers.set(
+		"cache-control",
+		immutable
+			? "public,max-age=31536000,immutable"
+			: "public,max-age=0,must-revalidate",
+	);
+
+	let body = file;
+	const accept = request.headers.get("accept-encoding") ?? "";
+	for (const [token, ext] of encodings) {
+		const compressed = accept.includes(token) && file_stat(`${file}${ext}`);
+		if (compressed) {
+			body = `${file}${ext}`;
+			stat = compressed;
+			headers.set("content-encoding", token);
+			headers.set("vary", "Accept-Encoding");
+			// The compressed sibling has no useful media type of its own.
+			headers.set("content-type", Bun.file(file).type);
+			break;
 		}
 	}
 
-	for (const path of prerendered) {
+	const { size, mtimeMs } = stat;
+	const etag = `W/"${size.toString(16)}-${Math.round(mtimeMs).toString(16)}"`;
+	if (request.headers.get("if-none-match") === etag) {
+		return new Response(null, { headers, status: 304 });
+	}
+	headers.set("etag", etag);
+
+	return new Response(Bun.file(body), { headers });
+}
+
+function serve_static(url: URL, request: Request): Response | undefined {
+	if (!serveAssets) {
+		return undefined;
+	}
+
+	const { pathname } = url;
+	const rel = pathname.startsWith(base)
+		? pathname.slice(base.length)
+		: pathname;
+
+	if (prerendered.has(pathname)) {
 		const file =
-			path === "/"
+			rel === "/" || rel === ""
 				? "index.html"
-				: path.endsWith("/")
-					? `${path.slice(1)}index.html`
-					: `${path.slice(1)}.html`;
-		routes[path] = Bun.file(`${prerendered_dir}/${file}`);
-
-		// The other trailing-slash form of a prerendered path redirects to
-		// the canonical one, preserving the query string (matches
-		// SvelteKit's own trailingSlash handling). Skipped when that form is
-		// itself a distinct prerendered entry, it gets its own real route
-		// above instead of a redirect.
-		const toggled = path.endsWith("/") ? path.slice(0, -1) : `${path}/`;
-		if (!prerendered.has(toggled) && !(toggled in routes)) {
-			routes[toggled] = (req: Request) => {
-				const { search } = new URL(req.url);
-				return new Response(null, {
-					headers: { location: path + search },
-					status: 308,
-				});
-			};
-		}
+				: rel.endsWith("/")
+					? `${rel.slice(1)}index.html`
+					: `${rel.slice(1)}.html`;
+		return asset_response(`${prerendered_dir}/${file}`, request);
 	}
 
-	return routes;
+	// The other trailing-slash form of a prerendered path redirects to the
+	// canonical one, query string preserved (matches SvelteKit's own
+	// trailingSlash handling).
+	const toggled = pathname.endsWith("/")
+		? pathname.slice(0, -1)
+		: `${pathname}/`;
+	if (prerendered.has(toggled)) {
+		return new Response(null, {
+			headers: { location: toggled + url.search },
+			status: 308,
+		});
+	}
+
+	return asset_response(
+		`${client_dir}/${rel.slice(1)}`,
+		request,
+		pathname.startsWith(immutable_prefix),
+	);
 }
 
 const ssr = async (request: Request, bunServer: Bun.Server<undefined>) => {
+	const url = new URL(request.url);
+
+	const asset = serve_static(url, request);
+	if (asset) {
+		return asset;
+	}
+
 	const baseOrigin = origin || get_origin(request.headers);
-	const url = request.url.slice(request.url.split("/", 3).join("/").length);
-	const newRequest = new Request(baseOrigin + url, request);
+	const path = request.url.slice(request.url.split("/", 3).join("/").length);
+	const newRequest = new Request(baseOrigin + path, request);
 
 	const response = await server.respond(newRequest, {
 		getClientAddress() {
@@ -134,7 +202,6 @@ export const getHandler = () => {
 
 	return {
 		fetch: ssr,
-		routes: serveAssets ? buildStaticRoutes() : {},
 		websocket,
 	};
 };

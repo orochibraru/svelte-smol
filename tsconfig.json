@@ -10,7 +10,20 @@
 		"skipLibCheck": true,
 		"strict": true,
 		"target": "ESNext",
-		"types": ["bun-types"]
+		"types": ["bun"]
 	},
-	"include": ["./**/*.ts"]
+	"include": [
+		"./internal.d.ts",
+		"./index.ts",
+		"./index.test.ts",
+		"./templates/**/*.ts",
+		"./test/*.ts"
+	],
+	"exclude": [
+		"node_modules",
+		"**/build",
+		"**/.svelte-kit",
+		"examples",
+		"test/fixtures"
+	]
 }

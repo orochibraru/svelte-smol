@@ -17,12 +17,6 @@ declare module "HANDLER" {
 			request: Request,
 			server: Bun.Server<undefined>,
 		) => Response | Promise<Response>;
-		routes: Record<
-			string,
-			| Bun.Serve.DirectoryRouteOptions
-			| Bun.BunFile
-			| ((req: Request) => Response)
-		>;
 		websocket: Bun.WebSocketHandler<undefined> | undefined;
 	};
 }
@@ -40,5 +34,5 @@ declare module "SERVER" {
 }
 
 declare const ENV_PREFIX: string;
-declare const BUILD_OPTIONS: { serveAssets: boolean };
+declare const BUILD_OPTIONS: { serveAssets: boolean; precompress: boolean };
 declare const SERVE_OPTIONS: Record<string, unknown>;

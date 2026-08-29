@@ -14,14 +14,13 @@ if (Number.isNaN(body_size_limit)) {
 }
 
 const idle_timeout = Number.parseInt(env("IDLE_TIMEOUT", "10"), 10);
-const { fetch: handlerFetch, routes, websocket } = getHandler();
+const { fetch: handlerFetch, websocket } = getHandler();
 
 const options = {
 	...SERVE_OPTIONS,
 	fetch: handlerFetch,
 	idleTimeout: idle_timeout,
 	maxRequestBodySize: body_size_limit,
-	routes,
 	...(path ? { unix: path } : { hostname: host, port: port }),
 	...(websocket ? { websocket } : {}),
 };

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const fixture = fileURLToPath(new URL("./fixtures/basic", import.meta.url));
@@ -33,8 +34,10 @@ beforeAll(async () => {
 		throw new Error(`vite build failed:\n${build.stderr.toString()}`);
 	}
 
-	server = Bun.spawn(["bun", "./build/index.js"], {
-		cwd: fixture,
+	// Run the compiled binary from an unrelated cwd: it must locate its
+	// client/ and prerendered/ folders from its own path, not process.cwd().
+	server = Bun.spawn([`${buildDir}/server`], {
+		cwd: tmpdir(),
 		env: { ...process.env, PORT: String(port), IDLE_TIMEOUT: "2" },
 		stdout: "pipe",
 		stderr: "pipe",
@@ -47,17 +50,15 @@ afterAll(() => {
 });
 
 describe("build output", () => {
-	test("emits the Bun entrypoint templates", () => {
-		expect(existsSync(`${buildDir}/index.js`)).toBe(true);
-		expect(existsSync(`${buildDir}/handler.js`)).toBe(true);
-		expect(existsSync(`${buildDir}/env.js`)).toBe(true);
-	});
+	test("emits a single self-contained executable, no loose JS/TS", () => {
+		const stat = statSync(`${buildDir}/server`);
+		expect(stat.isFile()).toBe(true);
+		expect(stat.mode & 0o111).toBeGreaterThan(0); // executable bit
+		expect(stat.size).toBeGreaterThan(10_000_000); // Bun runtime is embedded
 
-	test("bundles the server with Bun, not rolldown", async () => {
-		const serverBundle = await Bun.file(`${buildDir}/server/index.js`).text();
-		expect(serverBundle.startsWith("// @bun")).toBe(true);
-		expect(existsSync(`${buildDir}/server/manifest.js`)).toBe(true);
-		expect(existsSync(`${buildDir}/server/index.js.map`)).toBe(true);
+		expect(existsSync(`${buildDir}/index.js`)).toBe(false);
+		expect(existsSync(`${buildDir}/index.ts`)).toBe(false);
+		expect(existsSync(`${buildDir}/handler.ts`)).toBe(false);
 	});
 
 	test("no rolldown anywhere in the dependency tree of the built server", async () => {
@@ -92,13 +93,13 @@ describe("runtime", () => {
 		expect(res.headers.get("content-type")).toContain("text/html");
 	});
 
-	test("static asset served from an exact route", async () => {
+	test("static asset served by the handler", async () => {
 		const res = await fetch(`http://localhost:${port}/robots.txt`);
 		expect(res.status).toBe(200);
 		expect(res.headers.get("content-type")).toContain("text/plain");
 	});
 
-	test("immutable directory route sends a weak ETag and honors 304", async () => {
+	test("immutable asset gets an immutable Cache-Control, a weak ETag, and 304s", async () => {
 		const glob = new Bun.Glob("**/*.js");
 		const [asset] = await Array.fromAsync(
 			glob.scan({ cwd: `${buildDir}/client/_app/immutable` }),
@@ -107,6 +108,7 @@ describe("runtime", () => {
 
 		const first = await fetch(`http://localhost:${port}${path}`);
 		expect(first.status).toBe(200);
+		expect(first.headers.get("cache-control")).toContain("immutable");
 		const etag = first.headers.get("etag");
 		expect(etag).toMatch(/^W\//);
 
@@ -116,7 +118,7 @@ describe("runtime", () => {
 		expect(revalidated.status).toBe(304);
 	});
 
-	test("unmatched path falls through to SSR (404, not a dir-route 404)", async () => {
+	test("unmatched path falls through to SSR", async () => {
 		const res = await fetch(`http://localhost:${port}/does-not-exist`);
 		expect(res.status).toBe(404);
 	});
