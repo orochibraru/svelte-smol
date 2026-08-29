@@ -27,41 +27,6 @@ await server.init({
 	read: (file) => Bun.file(`${client_dir}/${file}`).stream(),
 });
 
-// Homerun delta from upstream, and from this app's own first vendored pass :
-// upstream (and our first cut) served every static asset, and prerendered
-// pages, through a hand-rolled sirv-based fetch handler running on every
-// request. Bun 1.4 added native `routes` support for exactly this (a `dir`
-// route for a directory tree, or a bare `Bun.file()`/`Response` as a route
-// value for one exact path), handled in Bun's own native code with no JS in
-// the hot path : real Range/HEAD/If-Modified-Since support, verified live
-// against a throwaway Bun.serve() (200/206/304 all correct; no ETag header
-// though, only Last-Modified-based conditional GETs). vendor/sirv.ts and its
-// mrmime/totalist dependencies are gone entirely, replaced by:
-//
-// - a wildcard `dir` route for `${appDir}/immutable/*`, SvelteKit's
-//   content-hashed build output. Safe as a wildcard because SvelteKit
-//   reserves that whole prefix, no app route can ever collide with it. The
-//   one thing lost versus the old sirv `setHeaders` : Bun's
-//   `DirectoryRouteOptions` has no header hook, so there's no explicit
-//   `Cache-Control: immutable` any more, callers rely on Last-Modified
-//   conditional requests instead (accepted trade-off, filenames are
-//   content-hashed so staleness was never a risk either way).
-// - one exact route per remaining file under `client/` (favicon,
-//   manifest.webmanifest, a service worker, ${appDir}/version.json, ...).
-//   Deliberately *not* a second wildcard `dir` route : Bun's own doc for
-//   `DirectoryRouteOptions` says a miss inside a `dir` route 404s outright,
-//   it does not fall through to `fetch`, which would break every real app
-//   route that doesn't happen to correspond to a static file. Exact routes
-//   don't have that problem, an unmatched app route just isn't one of these
-//   keys and falls through to `fetch` normally.
-// - one exact route per prerendered page (from the `prerendered` Set
-//   SvelteKit already resolved at build time, no runtime existence checks
-//   needed), plus a redirect route for the other trailing-slash form of
-//   each, mirroring what the old `serve_prerendered()` did by hand.
-//
-// Dotfiles (a stray `.env` dropped in `static/`, etc.) are excluded the same
-// way sirv's own default did : `Bun.Glob`'s default `dot: false` simply
-// never matches them, no filtering required.
 function buildStaticRoutes() {
 	const routes: Record<
 		string,
@@ -117,7 +82,7 @@ const ssr = async (request: Request, bunServer: Bun.Server<undefined>) => {
 	const url = request.url.slice(request.url.split("/", 3).join("/").length);
 	const newRequest = new Request(baseOrigin + url, request);
 
-	return server.respond(newRequest, {
+	const response = await server.respond(newRequest, {
 		getClientAddress() {
 			if (address_header) {
 				if (!request.headers.has(address_header)) {
@@ -152,6 +117,15 @@ const ssr = async (request: Request, bunServer: Bun.Server<undefined>) => {
 		},
 		platform: { request, server: bunServer },
 	});
+
+	// SvelteKit streams Server-Sent Events with no Content-Length and long
+	// gaps between writes; Bun's idleTimeout (default 10s) would sever the
+	// connection between events. Disable it for the life of this response.
+	if (response.headers.get("content-type")?.startsWith("text/event-stream")) {
+		bunServer.timeout(request, 0);
+	}
+
+	return response;
 };
 
 export const getHandler = () => {

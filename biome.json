@@ -30,5 +30,48 @@
 				"organizeImports": "on"
 			}
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": ["**/*.svelte", "**/*.astro", "**/*.vue"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noUnusedImports": "off",
+						"noUnusedVariables": "off"
+					},
+					"style": {
+						"useConst": "off",
+						"useImportType": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/app.d.ts"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noNamespace": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"src/lib/components/ui/**/index.ts",
+				"src/lib/server/db/index.ts"
+			],
+			"linter": {
+				"rules": {
+					"performance": {
+						"noBarrelFile": "off"
+					},
+					"style": {
+						"noExportedImports": "off"
+					}
+				}
+			}
+		}
+	]
 }

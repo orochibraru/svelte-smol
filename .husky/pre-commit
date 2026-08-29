@@ -1,2 +1,2 @@
-bun test
+bun run test
 bun run lint:fix

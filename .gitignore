@@ -6,6 +6,10 @@ out
 dist
 *.tgz
 
+# integration fixture build artifacts
+test/fixtures/*/build
+test/fixtures/*/.svelte-kit
+
 # code coverage
 coverage
 *.lcov

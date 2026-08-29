@@ -1,7 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import type { Adapter, Builder } from "@sveltejs/kit";
-import { rolldown } from "rolldown";
 
 export interface AdapterOptions {
 	out?: string;
@@ -41,7 +38,7 @@ export interface AdapterOptions {
 	serveOptions?: Record<string, unknown>;
 }
 
-const templates = fileURLToPath(new URL("./templates", import.meta.url).href);
+const templates = Bun.fileURLToPath(new URL("./templates", import.meta.url));
 
 export default function adapter(options: AdapterOptions = {}): Adapter {
 	const {
@@ -76,7 +73,7 @@ export default function adapter(options: AdapterOptions = {}): Adapter {
 
 			builder.log.minor("Building server");
 			builder.writeServer(tmp);
-			writeFileSync(
+			await Bun.write(
 				`${tmp}/manifest.js`,
 				[
 					`export const manifest = ${builder.generateManifest({ relativePath: "./" })};`,
@@ -85,32 +82,28 @@ export default function adapter(options: AdapterOptions = {}): Adapter {
 				].join("\n\n"),
 			);
 
-			const pkg = JSON.parse(readFileSync("package.json", "utf-8"));
-			const entrypoints: Record<string, string> = {
-				index: `${tmp}/index.js`,
-				manifest: `${tmp}/manifest.js`,
-			};
+			const hasInstrumentation =
+				builder.hasServerInstrumentationFile?.() ?? false;
 
-			if (builder.hasServerInstrumentationFile?.()) {
-				entrypoints["instrumentation.server"] =
-					`${tmp}/instrumentation.server.js`;
-			}
-
-			const bundle = await rolldown({
-				external: [
-					...Object.keys(pkg.dependencies || {}).map(
-						(d) => new RegExp(`^${d}(\\/.*)?$`),
-					),
-					/^node:/,
+			// Bundle SvelteKit's server output with Bun's own bundler instead of
+			// rolldown: drops the adapter's one runtime dependency. Only the app's
+			// declared `dependencies` stay external (resolved from `node_modules`
+			// at deploy time, à la `adapter-node`); everything else, `@sveltejs/kit`
+			// included, is bundled in. `target: "bun"` keeps `node:*` external.
+			const pkg = await Bun.file("package.json").json();
+			await Bun.build({
+				entrypoints: [
+					`${tmp}/index.js`,
+					`${tmp}/manifest.js`,
+					...(hasInstrumentation ? [`${tmp}/instrumentation.server.js`] : []),
 				],
-				input: entrypoints,
-			});
-
-			await bundle.write({
-				chunkFileNames: "chunks/[name]-[hash].js",
-				dir: `${out}/server`,
+				external: Object.keys(pkg.dependencies ?? {}),
 				format: "esm",
-				sourcemap: true,
+				naming: { chunk: "chunks/[name]-[hash].[ext]" },
+				outdir: `${out}/server`,
+				sourcemap: "linked",
+				splitting: true,
+				target: "bun",
 			});
 
 			// Compile our own entrypoint templates fresh, rather than shipping a
@@ -148,7 +141,7 @@ export default function adapter(options: AdapterOptions = {}): Adapter {
 				},
 			});
 
-			if (builder.hasServerInstrumentationFile?.()) {
+			if (hasInstrumentation) {
 				builder.instrument?.({
 					entrypoint: `${out}/index.js`,
 					instrumentation: `${out}/server/instrumentation.server.js`,
