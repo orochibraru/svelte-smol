@@ -1,3 +1,10 @@
+## [1.3.1](https://git.ombrage.space/orochibraru/svelte-bun-adapter/compare/v1.3.0...v1.3.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* build ([e14cc19](https://git.ombrage.space/orochibraru/svelte-bun-adapter/commit/e14cc19dd5666090eff3fe7cc8fc03b7369ffffd))
+
 # [1.3.0](https://git.ombrage.space/orochibraru/svelte-bun-adapter/compare/v1.2.0...v1.3.0) (2026-08-29)
 
 
