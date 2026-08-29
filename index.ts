@@ -45,6 +45,15 @@ export interface AdapterOptions {
 	 */
 	precompress?: boolean;
 	/**
+	 * Compile a second tiny executable, `healthcheck`, alongside the server
+	 * and expose a matching `GET` endpoint. The binary probes that endpoint
+	 * over loopback (or the Unix socket) and exits `0` when healthy, `1`
+	 * otherwise — ready to drop into a Docker `HEALTHCHECK`. Pass an object
+	 * to change the endpoint path.
+	 * @default true
+	 */
+	healthcheck?: boolean | { path?: string };
+	/**
 	 * Prefix for this adapter's own runtime env vars (`PORT`, `HOST`,
 	 * `ORIGIN`, ...).
 	 * @default ""
@@ -112,7 +121,7 @@ const templates = fileURLToPath(new URL("./templates", import.meta.url));
  * @example
  * ```js
  * // svelte.config.js
- * import adapter from "@orochibraru/svelte-smol;
+ * import adapter from "@orochibraru/svelte-smol";
  *
  * export default {
  *   kit: {
@@ -136,13 +145,22 @@ export default function adapter(options: AdapterOptions = {}): Adapter {
 		minify = false,
 		sourcemap = false,
 		precompress = false,
+		healthcheck = true,
 		envPrefix = "",
 		serveAssets = true,
 		serveOptions = {},
 	} = options;
 
+	const healthcheckConfig =
+		healthcheck === false
+			? false
+			: {
+					path:
+						(healthcheck === true ? undefined : healthcheck.path) ?? "/_health",
+				};
+
 	return {
-		name: "homerun-svelte-adapter-bun",
+		name: "@orochibraru/svelte-smol",
 		supports: {
 			instrumentation: () => true,
 			read: () => true,
@@ -187,7 +205,11 @@ export default function adapter(options: AdapterOptions = {}): Adapter {
 			builder.log.minor("Copying entrypoint");
 			builder.copy(templates, tmp, {
 				replace: {
-					BUILD_OPTIONS: JSON.stringify({ serveAssets, precompress }),
+					BUILD_OPTIONS: JSON.stringify({
+						serveAssets,
+						precompress,
+						healthcheck: healthcheckConfig,
+					}),
 					ENV: "./env.ts",
 					ENV_PREFIX: JSON.stringify(envPrefix),
 					HANDLER: "./handler.ts",
@@ -209,30 +231,36 @@ export default function adapter(options: AdapterOptions = {}): Adapter {
 				);
 			}
 
-			builder.log.minor(
-				target ? `Compiling executable (${target})` : "Compiling executable",
-			);
-			const outfile = `${out}/${name}`;
-			const result = await Bun.build({
-				entrypoints: [entry],
-				target: "bun",
-				minify,
-				bytecode,
-				sourcemap: sourcemap ? "linked" : "none",
-				compile: {
-					outfile,
-					...(target ? { target } : {}),
-				},
-			});
+			const compile = async (entrypoint: string, outName: string) => {
+				builder.log.minor(
+					target ? `Compiling ${outName} (${target})` : `Compiling ${outName}`,
+				);
+				const result = await Bun.build({
+					entrypoints: [entrypoint],
+					target: "bun",
+					minify,
+					bytecode,
+					sourcemap: sourcemap ? "linked" : "none",
+					compile: {
+						outfile: `${out}/${outName}`,
+						...(target ? { target } : {}),
+					},
+				});
 
-			if (!result.success) {
-				for (const message of result.logs) {
-					builder.log.error(String(message));
+				if (!result.success) {
+					for (const message of result.logs) {
+						builder.log.error(String(message));
+					}
+					throw new Error(`\`bun build --compile\` failed for ${outName}`);
 				}
-				throw new Error("`bun build --compile` failed");
-			}
 
-			builder.log.success(`Compiled ${outfile}`);
+				builder.log.success(`Compiled ${out}/${outName}`);
+			};
+
+			await compile(entry, name);
+			if (healthcheckConfig) {
+				await compile(`${tmp}/healthcheck.ts`, "healthcheck");
+			}
 		},
 	};
 }

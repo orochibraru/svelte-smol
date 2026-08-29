@@ -1,20 +1,39 @@
 {
 	"branches": ["main"],
 	"plugins": [
-		"@semantic-release/commit-analyzer",
-		"@semantic-release/release-notes-generator",
+		[
+			"@semantic-release/commit-analyzer",
+			{
+				"preset": "conventionalcommits",
+				"releaseRules": [
+					{ "breaking": true, "release": "major" },
+					{ "revert": true, "release": "patch" },
+					{
+						"type": "feat",
+						"scope": "@(ci|build|deps|dev|repo|test|example|release|no-release)",
+						"release": false
+					},
+					{
+						"type": "fix",
+						"scope": "@(ci|build|deps|dev|repo|test|example|release|no-release)",
+						"release": false
+					}
+				]
+			}
+		],
+		[
+			"@semantic-release/release-notes-generator",
+			{ "preset": "conventionalcommits" }
+		],
 		["@semantic-release/changelog", { "changelogFile": "CHANGELOG.md" }],
 		["@semantic-release/npm", { "npmPublish": true }],
-		[
-			"@saithodev/semantic-release-gitea",
-			{ "giteaUrl": "https://git.ombrage.space" }
-		],
 		[
 			"@semantic-release/git",
 			{
 				"assets": ["CHANGELOG.md", "package.json"],
 				"message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
 			}
-		]
+		],
+		"@semantic-release/github"
 	]
 }

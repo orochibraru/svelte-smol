@@ -11,7 +11,7 @@ const server = new Server(manifest) as SvelteKitServer & {
 	websocket?: () => Bun.WebSocketHandler<undefined> | undefined;
 };
 
-const { serveAssets, precompress } = BUILD_OPTIONS;
+const { serveAssets, precompress, healthcheck } = BUILD_OPTIONS;
 
 const origin = env("ORIGIN", undefined);
 const xff_depth = Number.parseInt(env("XFF_DEPTH", "1"), 10);
@@ -140,6 +140,23 @@ function serve_static(url: URL, request: Request): Response | undefined {
 
 const ssr = async (request: Request, bunServer: Bun.Server<undefined>) => {
 	const url = new URL(request.url);
+
+	if (
+		healthcheck &&
+		request.method === "GET" &&
+		url.pathname === healthcheck.path
+	) {
+		return Response.json(
+			{
+				status: "ok",
+				uptime: Math.round(process.uptime()),
+				rss: process.memoryUsage.rss(),
+				pid: process.pid,
+				timestamp: new Date().toISOString(),
+			},
+			{ headers: { "cache-control": "no-store" } },
+		);
+	}
 
 	const asset = serve_static(url, request);
 	if (asset) {

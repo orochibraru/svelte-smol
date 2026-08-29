@@ -1,61 +1,23 @@
-# Keeps the build context small and cache-friendly for Dockerfile's
-# `COPY . .` steps (app-builder and agent-builder stages both do a full
-# copy, so anything unnecessary here directly slows every image build and
-# needlessly busts layer caching).
-
-# VCS / editor / CI-only config
+# Everything is rebuilt inside the image; keep the build context small.
 .git
 .github
-.husky
 .vscode
-.agents
-.claude
 
-# Dependencies (reinstalled inside the image via bun install)
 node_modules
 **/node_modules
 
-# Build output (rebuilt inside the image; also avoids shipping a stale
-# host-built artifact into the image by accident)
 .svelte-kit
 build
 dist
 coverage
-tmp
 
-# Compiled sub-project binaries / generated CLI types checked out locally
-packages/cli/generated
-
-# Docker/compose files themselves (irrelevant inside the build context)
-compose.yaml
-compose.dev.yaml
-compose.prod.yaml
-docker-bake.hcl
 Dockerfile*
 .dockerignore
+compose*.yaml
 
-# Env / secrets, never bake these into an image layer
 .env
 .env.*
 !.env.example
-!.env.test
 
-# Local data / test artifacts
-*.db
-test-results/
-*.log
-
-# OS cruft
 .DS_Store
-Thumbs.db
-
-# Root README/notes aren't needed by any image ; docs/*.md is the one
-# exception (packages/docs/'s own build stage reads it at build time via
-# src/lib/docs-content.ts's import.meta.glob, see that file's own comment),
-# so it isn't excluded here the way the others are.
-README.md
-CONTRIBUTING.md
-CHANGELOG.md
-TODO.md
-AGENTS.md
-CLAUDE.md
+*.log

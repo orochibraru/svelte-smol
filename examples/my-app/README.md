@@ -1,42 +1,39 @@
-# sv
+# my-app
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+Minimal SvelteKit app wired to [`@orochibraru/svelte-smol`](../../), which
+compiles it into a single standalone executable.
 
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
-
-```sh
-# create a new project
-npx sv create my-app
-```
-
-To recreate this project with the same configuration:
+## Develop
 
 ```sh
-# recreate this project
-bun x sv@0.17.0 create --template minimal --types ts --install bun my-app
+bun install
+bun run dev
 ```
 
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+## Build
 
 ```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+bun run build
 ```
 
-## Building
-
-To create a production version of your app:
+Produces `build/server` (the executable) plus `build/client/` and
+`build/prerendered/`. Run it from anywhere:
 
 ```sh
-npm run build
+./build/server            # listens on 0.0.0.0:3000
+PORT=8080 ./build/server
 ```
 
-You can preview the production build with `npm run preview`.
+The `bunfig.toml` here sets `[run] bun = true` so `vite build` runs under the
+Bun runtime, which the compile step needs.
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+## Docker
+
+```sh
+docker build -t my-app .
+docker run --rm -p 3000:3000 my-app
+# or: docker compose up --build
+```
+
+Build and runtime images must share a libc — see the note in the
+[`Dockerfile`](./Dockerfile).

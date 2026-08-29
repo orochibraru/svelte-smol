@@ -14,6 +14,8 @@ const expected = new Set([
 	"BODY_SIZE_LIMIT",
 	"IDLE_TIMEOUT",
 	"SHUTDOWN_TIMEOUT",
+	"HEALTHCHECK_PATH",
+	"HEALTHCHECK_TIMEOUT",
 ]);
 
 if (ENV_PREFIX) {

@@ -2,19 +2,19 @@
 
 A [SvelteKit](https://svelte.dev/docs/kit) adapter that compiles your app into a
 **single standalone executable** with `bun build --compile`. No `node_modules`,
-no JS files to ship — just one binary plus its static assets.
+no JS files to ship, just one binary plus its static assets.
 
 ## Install
 
 ```bash
-bun add -d @orochibraru/svelte-adapter-bun
+bun add -d @orochibraru/svelte-smol
 ```
 
 ## Usage
 
 ```js
 // svelte.config.js
-import adapter from "@orochibraru/svelte-smol;
+import adapter from "@orochibraru/svelte-smol";
 
 export default {
   kit: {
@@ -23,11 +23,10 @@ export default {
 };
 ```
 
-Because the adapter touches `Bun.*` at config-load time, run the build with the
-Bun runtime:
+The compile step runs under the Bun runtime, so build with:
 
 ```bash
-bun --bun vite build
+bun run vite build
 ```
 
 ## Output
@@ -40,7 +39,7 @@ build/
 ```
 
 Deploy the whole `build/` directory (or just `server` if a proxy/CDN serves the
-assets — see `serveAssets`). The executable locates `client/` and `prerendered/`
+assets, see `serveAssets`). The executable locates `client/` and `prerendered/`
 relative to its own path, so it can be run from any working directory:
 
 ```bash
@@ -58,6 +57,7 @@ adapter({
   minify: false, // minify the bundled server code
   sourcemap: false, // embed a source map for server stack traces
   precompress: false, // emit + serve .gz / .br sibling files
+  healthcheck: true, // also compile `build/healthcheck` + expose GET /_health
   envPrefix: "", // prefix for the runtime env vars below
   serveAssets: true, // serve client/ and prerendered/ from the binary
   serveOptions: {}, // extra Bun.serve() options (tls, reusePort, …)
@@ -88,8 +88,26 @@ runtime the first time you use a target.
 | `BODY_SIZE_LIMIT`  | `512K`    | Max request body size (`K`/`M`/`G` suffixes allowed)                                            |
 | `IDLE_TIMEOUT`     | `10`      | Bun socket idle timeout in seconds (SSE responses opt out)                                      |
 | `SHUTDOWN_TIMEOUT` | `30`      | Seconds to wait for in-flight requests on `SIGINT`/`SIGTERM`                                    |
+| `HEALTHCHECK_PATH` | `/_health`| Endpoint the `healthcheck` binary probes (must match the `healthcheck` option)                  |
+| `HEALTHCHECK_TIMEOUT` | `2000` | `healthcheck` binary request timeout in ms                                                     |
 
 Set `envPrefix` to namespace these (`envPrefix: "MY_APP_"` → `MY_APP_PORT`).
+
+## Health check
+
+With `healthcheck` enabled (the default) the build also produces
+`build/healthcheck` — a tiny executable that requests `GET /_health` over
+loopback (or the Unix socket) and exits `0` when the server answers `200`,
+`1` otherwise. `GET /_health` returns `{ "status": "ok", uptime, rss, pid,
+timestamp }`. Drop it straight into Docker:
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+	CMD ["./build/healthcheck"]
+```
+
+It reads the same `HOST` / `PORT` / `SOCKET_PATH` as the server, so no extra
+wiring is needed.
 
 ## Notes
 
@@ -98,3 +116,14 @@ Set `envPrefix` to namespace these (`envPrefix: "MY_APP_"` → `MY_APP_PORT`).
   your dependencies are the one thing that can't be bundled this way.
 - WebSockets, `read()` from `$app/server`, prerendering, and server
   instrumentation are all supported.
+
+## Releases
+
+Automated by [semantic-release](https://semantic-release.gitbook.io/) from
+[Conventional Commits](https://www.conventionalcommits.org/):
+
+- `fix:` / `perf:` → **patch**, `feat:` → **minor**, `feat!:` or a
+  `BREAKING CHANGE:` footer → **major**
+- `docs:` `refactor:` `test:` `chore:` `build:` `ci:` `style:` → **no release**
+- `feat:` / `fix:` scoped to `ci`, `build`, `deps`, `dev`, `repo`, `test`,
+  `example`, `release` → **no release** (they don't touch the published package)

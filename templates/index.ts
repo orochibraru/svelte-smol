@@ -25,12 +25,26 @@ const options = {
 	...(websocket ? { websocket } : {}),
 };
 
-const server = Bun.serve(options as Parameters<typeof Bun.serve>[0]);
-
-console.log(`Listening on ${server.url} ${websocket ? "with WebSocket" : ""}`);
-
 const shutdown_timeout_ms =
 	Number.parseInt(env("SHUTDOWN_TIMEOUT", "30"), 10) * 1000;
+
+const server = Bun.serve(options as Parameters<typeof Bun.serve>[0]);
+
+const rows: Array<[string, string]> = [
+	["Listening on", path ? `unix:${path}` : `${server.url}`],
+	["WebSocket", websocket ? "enabled" : "disabled"],
+	["Body limit", format_bytes(body_size_limit)],
+	["Idle timeout", `${idle_timeout}s`],
+	["Shutdown grace", `${shutdown_timeout_ms / 1000}s`],
+	["Runtime", `Bun ${Bun.version} (${process.platform}/${process.arch})`],
+	["PID", `${process.pid}`],
+];
+console.log(
+	`\n  SvelteKit server ready\n\n${rows
+		.map(([label, value]) => `  ${`${label}:`.padEnd(16)}${value}`)
+		.join("\n")}\n`,
+);
+
 let shutting_down = false;
 
 async function graceful_shutdown(reason: "SIGINT" | "SIGTERM" | "IDLE") {
@@ -73,4 +87,15 @@ function parse_as_bytes(value: string): number {
 			M: 1024 * 1024,
 		}[units ?? "B"] ?? 1;
 	return Number(multiplier !== 1 ? value.slice(0, -1) : value) * multiplier;
+}
+
+function format_bytes(bytes: number): string {
+	const units = ["B", "KB", "MB", "GB"];
+	let value = bytes;
+	let unit = 0;
+	while (value >= 1024 && unit < units.length - 1) {
+		value /= 1024;
+		unit++;
+	}
+	return `${Number.isInteger(value) ? value : value.toFixed(1)} ${units[unit]}`;
 }

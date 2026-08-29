@@ -1,2 +1,8 @@
 [run]
 bun = true
+
+[test]
+coverage = true
+coverageSkipTestFiles = true
+coverageReporter = ["text"]
+coverageThreshold = { functions = 1.0, lines = 1.0, statements = 1.0 }

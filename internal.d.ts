@@ -34,5 +34,9 @@ declare module "SERVER" {
 }
 
 declare const ENV_PREFIX: string;
-declare const BUILD_OPTIONS: { serveAssets: boolean; precompress: boolean };
+declare const BUILD_OPTIONS: {
+	serveAssets: boolean;
+	precompress: boolean;
+	healthcheck: false | { path: string };
+};
 declare const SERVE_OPTIONS: Record<string, unknown>;

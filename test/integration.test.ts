@@ -61,6 +61,12 @@ describe("build output", () => {
 		expect(existsSync(`${buildDir}/handler.ts`)).toBe(false);
 	});
 
+	test("emits a healthcheck executable", () => {
+		const stat = statSync(`${buildDir}/healthcheck`);
+		expect(stat.isFile()).toBe(true);
+		expect(stat.mode & 0o111).toBeGreaterThan(0);
+	});
+
 	test("no rolldown anywhere in the dependency tree of the built server", async () => {
 		const pkg = await Bun.file(
 			new URL("../package.json", import.meta.url),
@@ -129,6 +135,31 @@ describe("runtime", () => {
 		});
 		expect(res.status).toBe(308);
 		expect(res.headers.get("location")).toBe("/about");
+	});
+
+	test("health endpoint reports ok", async () => {
+		const res = await fetch(`http://localhost:${port}/_health`);
+		expect(res.status).toBe(200);
+		expect(res.headers.get("cache-control")).toBe("no-store");
+		const body = (await res.json()) as { status: string; uptime: number };
+		expect(body.status).toBe("ok");
+		expect(typeof body.uptime).toBe("number");
+	});
+
+	test("healthcheck binary exits 0 when the server is up, 1 when it isn't", () => {
+		const ok = Bun.spawnSync([`${buildDir}/healthcheck`], {
+			env: { ...process.env, PORT: String(port) },
+		});
+		expect(ok.exitCode).toBe(0);
+
+		const down = Bun.spawnSync([`${buildDir}/healthcheck`], {
+			env: {
+				...process.env,
+				PORT: String(port + 1),
+				HEALTHCHECK_TIMEOUT: "1000",
+			},
+		});
+		expect(down.exitCode).toBe(1);
 	});
 
 	test("SSE response outlives the idle timeout", async () => {
