@@ -22,6 +22,30 @@ if (!version || !/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(version)) {
 }
 const range = `^${version}`;
 
+// `npm publish` returns before the registry has finished processing the
+// package ("may take a few minutes to become available"), and that has been
+// observed to take 6+ minutes. Poll the install manifest, the same document
+// `bun install` resolves against, until the version shows up.
+const WAIT_MS = 20 * 60_000;
+const deadline = Date.now() + WAIT_MS;
+for (;;) {
+	const res = await fetch(`https://registry.npmjs.org/${PKG}`, {
+		headers: { accept: "application/vnd.npm.install-v1+json" },
+	}).catch(() => undefined);
+	const doc = res?.ok
+		? ((await res.json()) as { versions?: Record<string, unknown> })
+		: undefined;
+	if (doc?.versions?.[version]) break;
+	if (Date.now() > deadline) {
+		console.error(
+			`${PKG}@${version} still not on the registry after ${WAIT_MS / 60_000} min`,
+		);
+		process.exit(1);
+	}
+	console.log(`  waiting for ${PKG}@${version} to appear on the registry...`);
+	await Bun.sleep(20_000);
+}
+
 const examplesDir = new URL("../examples/", import.meta.url);
 const entries = await readdir(examplesDir, { withFileTypes: true });
 
@@ -51,12 +75,11 @@ for (const entry of entries) {
 	await Bun.write(manifest, `${JSON.stringify(pkg, null, "\t")}\n`);
 	console.log(`  ${entry.name}: ${PKG} -> ${range}`);
 
-	// Refresh bun.lock without a full install. The freshly published version's
-	// manifest can take a few minutes to propagate, so retry for up to ~5 min
-	// before giving up. `--no-cache` stops a retry from reusing the stale
-	// manifest bun cached on the previous, failed attempt.
+	// Refresh bun.lock without a full install. The version is already on the
+	// registry (checked above); the few retries only cover CDN edges that lag
+	// behind it. `--no-cache` stops a retry reusing a stale cached manifest.
 	const cwd = fileURLToPath(dir);
-	const attempts = 20;
+	const attempts = 5;
 	let locked = false;
 	for (let attempt = 1; attempt <= attempts && !locked; attempt++) {
 		const proc = Bun.spawnSync(
