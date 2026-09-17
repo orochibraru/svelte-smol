@@ -227,7 +227,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         vm.run(BUNDLE, false, false).await;
 
         let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(3000);
-        let listener = TcpListener::bind(("0.0.0.0", port)).await.expect("bind");
+        let listener = match TcpListener::bind(("0.0.0.0", port)).await {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("cannot listen on port {port}: {e}\nSet PORT to pick another.");
+                std::process::exit(1);
+            },
+        };
         println!("SvelteKit on QuickJS (Rust host) — http://localhost:{port}");
 
         loop {

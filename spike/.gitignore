@@ -1,4 +1,5 @@
 target/
 bundle.js
+.entry.js
 Cargo.lock
 vendor/

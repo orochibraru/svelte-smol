@@ -56,12 +56,44 @@ only plain Rust types cross the channels.
 ## Run it
 
 ```bash
-./build.sh
-cd ../examples/compiled-app/build && ASSETS_DIR=. PORT=3000 \
-  ../../../spike/target/release/sveltekit-quickjs
+./build.sh                          # the bundled example app
+./build.sh ~/Dev/my-app             # any SvelteKit project
+./build.sh ~/Dev/my-app --no-build  # reuse its existing .svelte-kit output
 ```
 
+It prints the exact run command when it finishes, e.g.
+
+```bash
+cd ~/Dev/my-app && ASSETS_DIR=.svelte-kit/output PORT=3000 \
+  /path/to/spike/target/release/sveltekit-quickjs
+```
+
+The app's adapter does not matter: the build consumes
+`.svelte-kit/output/server`, which Vite writes whatever the adapter is, and
+serves assets from `.svelte-kit/output/{client,prerendered}` for the same
+reason. `ASSETS_DIR` is how the binary finds them; `PORT` defaults to 3000 and
+a busy port exits with a message naming it.
+
+The entry names its imports `SERVER` and `MANIFEST`, and `build.sh` swaps in
+the chosen app's paths — the same token trick the adapter uses on its own
+templates (see `../index.ts`). The generated `.entry.js` is gitignored.
+
 Needs `cargo`, `cmake` (zlib-ng/brotli build deps), `node` and `bun`.
+
+### Pointing it at a real app
+
+This is where the binding bill comes due, and it comes due loudly. Building
+`examples/native-addon` (it uses `sharp`) succeeds — 106 modules, 0.57 MB —
+and then dies at startup:
+
+```text
+SyntaxError: Could not find export 'spawnSync' in module 'child_process'
+```
+
+LLRT's `child_process` shim is too thin for sharp's loader. That is the honest
+shape of the answer for most real apps: the bundle builds, and the first
+missing host capability stops it before the first request. Each one is a
+binding (see below), not a bug to fix in the spike.
 
 `build.sh` uses `bun build` as the bundler because it is already here. Nothing
 Bun-specific reaches the output: `npx esbuild handler.js --bundle --format=esm
@@ -135,6 +167,8 @@ same capability. Worth it only to inherit Bun's exact `Bun.sql` semantics.
 - Single JS context on a single thread.
 - LLRT is a subset runtime: no `node:http`, partial `fs`/`stream`.
 - Request bodies are buffered before the call into JS (responses stream).
+- One app per binary: the server bundle is baked in at compile time, so a
+  different app means another `./build.sh`.
 
 ## Why not Node as the base
 

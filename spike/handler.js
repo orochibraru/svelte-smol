@@ -1,10 +1,14 @@
 // Bun-free SSR entry: kit's own server output, driven by the Rust host.
-// Paths are relative to this file, so the bundler resolves them from `spike/`.
-import { Server } from "../examples/compiled-app/.svelte-kit/output/server/index.js";
-import { manifest } from "../examples/compiled-app/.svelte-kit/output/server/manifest-full.js";
+// SERVER and MANIFEST are swapped for the chosen app's paths by build.sh, the
+// same token trick the adapter uses on its own templates (see ../index.ts).
+
+import { manifest } from "MANIFEST";
+import { Server } from "SERVER";
 
 const server = new Server(manifest);
-const ready = server.init({ env: {} });
+// Real apps read secrets through `$env/dynamic/private`, so pass the
+// process environment rather than an empty object.
+const ready = server.init({ env: process.env ?? {} });
 
 // What crosses back to Rust: plain status/headers, plus the body's reader so
 // Rust can pump chunks as kit produces them (streamed `load` promises included).
