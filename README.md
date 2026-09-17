@@ -10,17 +10,25 @@ no JS files to ship, just one binary plus its static assets.
 bun add -d @orochibraru/svelte-smol
 ```
 
+For SvelteKit 3 (prerelease), install from the `next` tag instead:
+
+```bash
+bun add -d @orochibraru/svelte-smol@next @sveltejs/kit@next
+```
+
 ## Usage
 
+SvelteKit 3 reads its options from the `sveltekit()` Vite plugin:
+
 ```js
-// svelte.config.js
+// vite.config.js
+import { sveltekit } from "@sveltejs/kit/vite";
+import { defineConfig } from "vite";
 import adapter from "@orochibraru/svelte-smol";
 
-export default {
-  kit: {
-    adapter: adapter(),
-  },
-};
+export default defineConfig({
+  plugins: [sveltekit({ adapter: adapter() })],
+});
 ```
 
 The compile step runs under the Bun runtime, so build with:

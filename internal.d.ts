@@ -22,15 +22,14 @@ declare module "HANDLER" {
 }
 
 declare module "MANIFEST" {
-	import type { SSRManifest } from "@sveltejs/kit";
-
 	export const base: string;
-	export const manifest: SSRManifest;
+	/** `builder.getAppPath()`, base included, no leading slash. */
+	export const app_path: string;
 	export const prerendered: Set<string>;
 }
 
 declare module "SERVER" {
-	export { Server } from "@sveltejs/kit";
+	export const server: import("@sveltejs/kit").Server;
 }
 
 declare const ENV_PREFIX: string;

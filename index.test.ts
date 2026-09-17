@@ -49,7 +49,7 @@ function fakeBuilder(instrumentation = false) {
 	const calls = { compress: 0 };
 	const builder = {
 		calls,
-		config: { kit: { paths: { base: "" } } },
+		config: { paths: { base: "" } },
 		prerendered: { paths: [] as string[] },
 		log: {
 			minor() {},
@@ -59,12 +59,16 @@ function fakeBuilder(instrumentation = false) {
 			info() {},
 		},
 		getBuildDirectory: () => tmp,
-		rimraf: (path: string) => rmSync(path, { recursive: true, force: true }),
-		mkdirp: (path: string) => mkdirSync(path, { recursive: true }),
 		writeClient() {},
 		writePrerendered() {},
 		writeServer: (dir: string) => mkdirSync(dir, { recursive: true }),
-		generateManifest: () => "{}",
+		generateServerInstance() {},
+		getAppPath: () => "_app",
+		createInstrumentationInitializer: ({
+			outputDirectory,
+		}: {
+			outputDirectory: string;
+		}) => join(outputDirectory, "__sveltekit_env_init.js"),
 		compress: async () => {
 			calls.compress++;
 		},
@@ -129,7 +133,9 @@ test("adapt() threads precompress, target and instrumentation through", async ()
 	).toBe("bun-linux-x64");
 
 	const entry = await Bun.file(join(scratch, ".tmp", "index.ts")).text();
-	expect(entry).toStartWith('import "./server/instrumentation.server.js";');
+	const [init, instrumentation] = entry.split("\n");
+	expect(init).toEndWith('__sveltekit_env_init.js";');
+	expect(instrumentation).toBe('import "./server/instrumentation.server.js";');
 });
 
 test("adapt() with { compile: false } emits an index.js bundle plus the healthcheck binary", async () => {

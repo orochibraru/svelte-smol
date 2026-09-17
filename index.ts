@@ -1,3 +1,4 @@
+import { mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Adapter, Builder } from "@sveltejs/kit";
 
@@ -137,18 +138,22 @@ const templates = fileURLToPath(new URL("./templates", import.meta.url));
  *
  * @example
  * ```js
- * // svelte.config.js
+ * // vite.config.js
+ * import { sveltekit } from "@sveltejs/kit/vite";
+ * import { defineConfig } from "vite";
  * import adapter from "@orochibraru/svelte-smol";
  *
- * export default {
- *   kit: {
- *     adapter: adapter({
- *       // cross-compile for an Alpine container from any host
- *       target: "bun-linux-x64-musl",
- *       bytecode: true,
+ * export default defineConfig({
+ *   plugins: [
+ *     sveltekit({
+ *       adapter: adapter({
+ *         // cross-compile for an Alpine container from any host
+ *         target: "bun-linux-x64-musl",
+ *         bytecode: true,
+ *       }),
  *     }),
- *   },
- * };
+ *   ],
+ * });
  * ```
  *
  * @see {@link https://bun.com/docs/bundler/executables | Bun — Single-file executables}
@@ -184,13 +189,13 @@ export default function adapter(options: AdapterOptions = {}): Adapter {
 			read: () => true,
 		},
 		async adapt(builder: Builder) {
-			const { base } = builder.config.kit.paths;
+			const { base } = builder.config.paths;
 			const tmp = builder.getBuildDirectory("adapter-bun");
 
-			builder.rimraf(out);
-			builder.rimraf(tmp);
-			builder.mkdirp(`${out}/`);
-			builder.mkdirp(tmp);
+			rmSync(out, { force: true, recursive: true });
+			rmSync(tmp, { force: true, recursive: true });
+			mkdirSync(out, { recursive: true });
+			mkdirSync(tmp, { recursive: true });
 
 			builder.log.minor("Copying assets");
 			builder.writeClient(`${out}/client${base}`);
@@ -206,12 +211,17 @@ export default function adapter(options: AdapterOptions = {}): Adapter {
 
 			builder.log.minor("Building server");
 			builder.writeServer(`${tmp}/server`);
+			// SvelteKit 3 no longer hands out a serialised manifest; it writes a
+			// module exporting a ready-made `server` instance instead.
+			builder.generateServerInstance(`${tmp}/server/instance.js`, {
+				serverDirectory: `${tmp}/server`,
+			});
 			await Bun.write(
 				`${tmp}/server/manifest.js`,
 				[
-					`export const manifest = ${builder.generateManifest({ relativePath: "./" })};`,
 					`export const prerendered = new Set(${JSON.stringify(builder.prerendered.paths)});`,
 					`export const base = ${JSON.stringify(base)};`,
+					`export const app_path = ${JSON.stringify(builder.getAppPath())};`,
 				].join("\n\n"),
 			);
 
@@ -234,19 +244,25 @@ export default function adapter(options: AdapterOptions = {}): Adapter {
 					HANDLER: "./handler.ts",
 					MANIFEST: "./server/manifest.js",
 					SERVE_OPTIONS: JSON.stringify(serveOptions),
-					SERVER: "./server/index.js",
+					SERVER: "./server/instance.js",
 				},
 			});
 
 			const entry = `${tmp}/index.ts`;
-			if (builder.hasServerInstrumentationFile?.()) {
+			if (builder.hasServerInstrumentationFile()) {
 				// Instrumentation (OpenTelemetry &c.) has to load before anything
 				// else in the bundle. A compiled binary has no post-build
-				// entrypoint to rewrite, so prepend the import to the compile
-				// entrypoint instead.
+				// entrypoint to rewrite, so prepend the imports to the compile
+				// entrypoint instead. The initializer populates
+				// `$env/dynamic/private` first, so instrumentation can read it.
+				const initializer = builder.createInstrumentationInitializer({
+					outputDirectory: tmp,
+					serverDirectory: `${tmp}/server`,
+					environment: "export default Bun.env;",
+				});
 				await Bun.write(
 					entry,
-					`import "./server/instrumentation.server.js";\n${await Bun.file(entry).text()}`,
+					`import ${JSON.stringify(initializer)};\nimport "./server/instrumentation.server.js";\n${await Bun.file(entry).text()}`,
 				);
 			}
 

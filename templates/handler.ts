@@ -1,13 +1,13 @@
 /* global ENV_PREFIX, BUILD_OPTIONS */
 
 import { env } from "ENV";
-import { base, manifest, prerendered } from "MANIFEST";
-import { Server } from "SERVER";
+import { app_path, base, prerendered } from "MANIFEST";
+import { server as kit_server } from "SERVER";
 import { statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { Server as SvelteKitServer } from "@sveltejs/kit";
 
-const server = new Server(manifest) as SvelteKitServer & {
+const server = kit_server as SvelteKitServer & {
 	websocket?: () => Bun.WebSocketHandler<undefined> | undefined;
 };
 
@@ -33,7 +33,7 @@ const self_dir = compiled ? dirname(process.execPath) : import.meta.dir;
 const assets_root = resolve(self_dir, env("ASSETS_DIR", ""));
 const client_dir = `${assets_root}/client${base}`;
 const prerendered_dir = `${assets_root}/prerendered${base}`;
-const immutable_prefix = `${base}/${manifest.appDir}/immutable/`;
+const immutable_prefix = `/${app_path}/immutable/`;
 
 await server.init({
 	env: Bun.env as Record<string, string>,
