@@ -52,17 +52,19 @@ for (const entry of entries) {
 	console.log(`  ${entry.name}: ${PKG} -> ${range}`);
 
 	// Refresh bun.lock without a full install. The freshly published version's
-	// manifest can take a moment to propagate, so retry before giving up.
+	// manifest can take a few minutes to propagate, so retry for up to ~5 min
+	// before giving up. `--no-cache` stops a retry from reusing the stale
+	// manifest bun cached on the previous, failed attempt.
 	const cwd = fileURLToPath(dir);
+	const attempts = 20;
 	let locked = false;
-	for (let attempt = 1; attempt <= 5 && !locked; attempt++) {
-		const proc = Bun.spawnSync(["bun", "install", "--lockfile-only"], {
-			cwd,
-			stdout: "inherit",
-			stderr: "inherit",
-		});
+	for (let attempt = 1; attempt <= attempts && !locked; attempt++) {
+		const proc = Bun.spawnSync(
+			["bun", "install", "--lockfile-only", "--no-cache"],
+			{ cwd, stdout: "inherit", stderr: "inherit" },
+		);
 		locked = proc.success;
-		if (!locked && attempt < 5) await Bun.sleep(attempt * 3000);
+		if (!locked && attempt < attempts) await Bun.sleep(15_000);
 	}
 	if (!locked) {
 		console.error(`  ${entry.name}: could not refresh bun.lock for ${range}`);
