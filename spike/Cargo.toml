@@ -1,0 +1,24 @@
+[package]
+name = "sveltekit-quickjs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["rt", "net", "macros", "io-util", "time", "signal"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+# One binding, to price the "everything missing" question: a Rust crate wired
+# to a JS global replaces bun:sqlite. Same pattern for Postgres (tokio-postgres)
+# or Bun's own engine-agnostic bun_sql crate.
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde_json = "1"
+tokio-stream = "0.1"
+llrt_core = { path = "vendor/llrt/llrt_core" }
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1
