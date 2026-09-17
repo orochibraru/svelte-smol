@@ -14,7 +14,7 @@ export default defineConfig({
 			// `sharp` ships a native (.node) addon that `bun build --compile`
 			// can't embed, so this app is built as a plain `build/index.js`
 			// bundle instead, run with `bun` alongside `node_modules`.
-			adapter: adapter({ compile: false }),
+			adapter: adapter({ buildOptions: { compile: false } }),
 		}),
 	],
 });

@@ -1,8 +1,14 @@
 # Svelte Smol Adapter
 
 A [SvelteKit](https://svelte.dev/docs/kit) adapter that compiles your app into a
-**single standalone executable** with `bun build --compile`. No `node_modules`,
-no JS files to ship, just one binary plus its static assets.
+**single standalone executable** with `bun build --compile` — static assets and
+prerendered pages embedded. No `node_modules`, no JS files, no asset folders to
+ship: just one binary.
+
+Built on the design of the official
+[`@sveltejs/adapter-bun`](https://svelte.dev/docs/kit/adapter-bun) and
+option-compatible with it. What smol changes: compiling is the **default**, and
+it adds a `healthcheck` binary + endpoint.
 
 ## Install
 
@@ -16,9 +22,9 @@ For SvelteKit 3 (prerelease), install from the `next` tag instead:
 bun add -d @orochibraru/svelte-smol@next @sveltejs/kit@next
 ```
 
-## Usage
+Requires Bun 1.4+.
 
-SvelteKit 3 reads its options from the `sveltekit()` Vite plugin:
+## Usage
 
 ```js
 // vite.config.js
@@ -31,127 +37,117 @@ export default defineConfig({
 });
 ```
 
-The compile step runs under the Bun runtime, so build with:
+The build runs under the Bun runtime:
 
 ```bash
-bun run vite build
+bun run --bun vite build
 ```
 
 ## Output
 
 ```text
 build/
-├── server        # the compiled executable
-├── client/       # static assets, served by the executable
-└── prerendered/  # prerendered pages, served by the executable
+├── server        # the executable, assets embedded
+└── healthcheck   # tiny probe for Docker HEALTHCHECK
 ```
-
-Deploy the whole `build/` directory (or just `server` if a proxy/CDN serves the
-assets, see `serveAssets`). The executable locates `client/` and `prerendered/`
-relative to its own path, so it can be run from any working directory:
 
 ```bash
 ./build/server
 ```
 
-### `compile: false`
+### `buildOptions.compile: false`
 
-`bun build --compile` bundles every dependency into the binary, and a native
-(`.node`) addon like `sharp` or `better-sqlite3` can't be bundled that way. Set
-`compile: false` to emit a plain bundle instead:
+A native (`.node`) addon like `sharp` can't be embedded in a binary. Set
+`buildOptions: { compile: false }` to emit a plain bundle instead:
 
 ```text
 build/
-├── index.js       # the server bundle, run with `bun`
+├── index.js       # the server entry, run with `bun`
+├── server/        # split chunks
 ├── healthcheck    # still a compiled binary
 ├── client/
 └── prerendered/
 ```
 
 ```bash
-bun run ./build/index.js
+bun ./build/index.js
 ```
 
-Pure-JS dependencies are still bundled into `index.js`. A native addon can't be,
-so its `require` stays in the output and resolves from `node_modules` at runtime
-(looked up from `index.js`'s own location, so the working directory doesn't
-matter). Ship `node_modules` for those — a production install is enough, since
-everything that got bundled needn't be there.
-
-Everything else — env vars, the `healthcheck` binary, `serveAssets`,
-instrumentation — works the same.
+Pure-JS dependencies are still bundled. Native addons resolve from
+`node_modules` at runtime, so ship a production install alongside.
 
 ## Options
 
 ```js
 adapter({
   out: "build", // output directory
-  name: "server", // executable filename within `out`
-  compile: true, // false → emit build/index.js (run with `bun`) instead of a binary
-  target: undefined, // cross-compile target, e.g. "bun-linux-x64"
-  bytecode: false, // embed a V8 bytecode cache (faster cold start, bigger binary)
-  minify: false, // minify the bundled server code
-  sourcemap: false, // embed a source map for server stack traces
-  precompress: false, // emit + serve .gz / .br sibling files
-  healthcheck: true, // also compile `build/healthcheck` + expose GET /_health
+  precompress: false, // .br/.gz variants (compile: false only)
   envPrefix: "", // prefix for the runtime env vars below
-  serveAssets: true, // serve client/ and prerendered/ from the binary
-  serveOptions: {}, // extra Bun.serve() options (tls, reusePort, …)
+  serverOptions: {}, // JSON-serializable Bun.serve() defaults; env vars win
+  buildOptions: {
+    compile: true, // true | "bun-linux-x64-musl" | { target, outfile, … } | false
+    // also: sourcemap, minify, bytecode, banner, footer, drop, features,
+    // optimizeImports, splitting
+  },
+  healthcheck: true, // or { path: "/healthz" }, or false
 });
 ```
 
-### Cross-compilation
-
-`target` accepts any Bun compile target, e.g. `"bun-linux-x64"`,
-`"bun-linux-arm64-musl"` (Alpine), `"bun-darwin-arm64"`, `"bun-windows-x64"`,
-with optional `-modern` / `-baseline` SIMD suffixes. Bun downloads the matching
-runtime the first time you use a target.
+`compile` accepts any Bun compile target string (`"bun-linux-x64"`,
+`"bun-linux-arm64-musl"`, `"bun-darwin-arm64"`, `"bun-windows-x64"`, …) to
+cross-compile; the healthcheck binary uses the same target.
 
 ## Runtime environment variables
 
-| Variable           | Default   | Purpose                                                                                         |
-| ------------------ | --------- | ----------------------------------------------------------------------------------------------- |
-| `HOST`             | `0.0.0.0` | Listen address                                                                                  |
-| `PORT`             | `3000`    | Listen port                                                                                     |
-| `SOCKET_PATH`      | —         | Listen on a Unix socket instead of `HOST`/`PORT`                                                |
-| `ASSETS_DIR`       | —         | Override where `client/` and `prerendered/` are looked up (absolute, or relative to the binary) |
-| `ORIGIN`           | —         | Absolute origin used for request URL resolution                                                 |
-| `PROTOCOL_HEADER`  | —         | Header carrying the forwarded protocol (e.g. `x-forwarded-proto`)                               |
-| `HOST_HEADER`      | —         | Header carrying the forwarded host                                                              |
-| `PORT_HEADER`      | —         | Header carrying the forwarded port                                                              |
-| `ADDRESS_HEADER`   | —         | Header carrying the client address (e.g. `x-forwarded-for`)                                     |
-| `XFF_DEPTH`        | `1`       | Trusted-proxy depth when `ADDRESS_HEADER=x-forwarded-for`                                       |
-| `BODY_SIZE_LIMIT`  | `512K`    | Max request body size (`K`/`M`/`G` suffixes allowed)                                            |
-| `IDLE_TIMEOUT`     | `10`      | Bun socket idle timeout in seconds (SSE responses opt out)                                      |
-| `SHUTDOWN_TIMEOUT` | `30`      | Seconds to wait for in-flight requests on `SIGINT`/`SIGTERM`                                    |
-| `HEALTHCHECK_PATH` | `/_health`| Endpoint the `healthcheck` binary probes (must match the `healthcheck` option)                  |
-| `HEALTHCHECK_TIMEOUT` | `2000` | `healthcheck` binary request timeout in ms                                                     |
+| Variable                  | Default   | Purpose                                                           |
+| ------------------------- | --------- | ----------------------------------------------------------------- |
+| `HOST`                    | `0.0.0.0` | Listen address                                                    |
+| `PORT`                    | `3000`    | Listen port                                                       |
+| `SOCKET_PATH`             | —         | Listen on a Unix socket instead of `HOST`/`PORT`                  |
+| `REUSE_PORT`              | `false`   | `SO_REUSEPORT`                                                    |
+| `IPV6_ONLY`               | `false`   | Disable dual-stack                                                |
+| `CONNECTION_IDLE_TIMEOUT` | `10`      | Bun socket idle timeout in seconds, max 255 (SSE responses opt out) |
+| `BODY_SIZE_LIMIT`         | `512K`    | Max request body (`K`/`M`/`G` suffixes, or `Infinity`)            |
+| `SHUTDOWN_TIMEOUT`        | `30`      | Seconds to drain in-flight requests on `SIGINT`/`SIGTERM`         |
+| `DEVELOPMENT`             | `false`   | Bun.serve development mode                                        |
+| `PROTOCOL_HEADER`         | —         | Header carrying the forwarded protocol (e.g. `x-forwarded-proto`) |
+| `HOST_HEADER`             | —         | Header carrying the forwarded host                                |
+| `PORT_HEADER`             | —         | Header carrying the forwarded port                                |
+| `ADDRESS_HEADER`          | —         | Header carrying the client address (e.g. `x-forwarded-for`)       |
+| `XFF_DEPTH`               | `1`       | Trusted-proxy depth when `ADDRESS_HEADER=x-forwarded-for`         |
+| `HEALTHCHECK_PATH`        | `/_health`| Endpoint the `healthcheck` binary probes                          |
+| `HEALTHCHECK_TIMEOUT`     | `2000`    | `healthcheck` binary request timeout in ms                        |
 
 Set `envPrefix` to namespace these (`envPrefix: "MY_APP_"` → `MY_APP_PORT`).
+The public origin comes from SvelteKit's `paths.origin` config, or the request
+headers above.
 
 ## Health check
 
-With `healthcheck` enabled (the default) the build also produces
-`build/healthcheck` — a tiny executable that requests `GET /_health` over
-loopback (or the Unix socket) and exits `0` when the server answers `200`,
-`1` otherwise. `GET /_health` returns `{ "status": "ok", uptime, rss, pid,
-timestamp }`. Drop it straight into Docker:
+With `healthcheck` enabled (the default) the server answers `GET /_health` with
+`{ "status": "ok", "uptime": … }`, and the build also produces
+`build/healthcheck`, which probes it over loopback (or the Unix socket) and
+exits `0` when healthy, `1` otherwise:
 
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
 	CMD ["./build/healthcheck"]
 ```
 
-It reads the same `HOST` / `PORT` / `SOCKET_PATH` as the server, so no extra
-wiring is needed.
+It reads the same `HOST` / `PORT` / `SOCKET_PATH` as the server.
 
-## Notes
+## Migrating from 1.x
 
-- The SvelteKit server code is JavaScript emitted by Vite; `--compile` embeds it
-  in the binary, so nothing but the executable ships. Native (`.node`) modules in
-  your dependencies are the one thing that can't be bundled this way.
-- WebSockets, `read()` from `$app/server`, prerendering, and server
-  instrumentation are all supported.
+| 1.x                          | now                                          |
+| ---------------------------- | -------------------------------------------- |
+| `compile: false`             | `buildOptions: { compile: false }`           |
+| `target: "bun-linux-x64"`    | `buildOptions: { compile: "bun-linux-x64" }` |
+| `name: "app"`                | `buildOptions: { compile: { outfile: "app" } }` |
+| `bytecode`, `minify`, `sourcemap` | `buildOptions.*`                        |
+| `serveOptions`               | `serverOptions` (JSON-serializable only)     |
+| `serveAssets: false`         | removed — assets are embedded                |
+| `IDLE_TIMEOUT`               | `CONNECTION_IDLE_TIMEOUT`                    |
+| `ORIGIN`, `ASSETS_DIR`       | removed — use `paths.origin`; assets are embedded |
 
 ## Releases
 

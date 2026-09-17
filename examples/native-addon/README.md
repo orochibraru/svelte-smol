@@ -2,7 +2,7 @@
 
 A SvelteKit app that depends on [`sharp`](https://sharp.pixelplumbing.com/), a
 native (`.node`) module. `bun build --compile` can't embed native addons, so
-this example uses `adapter({ compile: false })`: the build emits a plain
+this example uses `adapter({ buildOptions: { compile: false } })`: the build emits a plain
 `build/index.js` bundle (dependencies left external) that runs under `bun`
 alongside `node_modules`.
 
@@ -24,6 +24,7 @@ Produces:
 ```text
 build/
 ├── index.js       # the server bundle, run with `bun`
+├── server/        # split chunks
 ├── healthcheck    # still a compiled binary
 ├── client/
 └── prerendered/

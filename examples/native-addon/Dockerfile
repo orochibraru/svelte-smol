@@ -1,4 +1,4 @@
-# `compile: false` ships a `build/index.js` bundle with its dependencies left
+# `buildOptions.compile: false` ships a `build/index.js` bundle with its dependencies left
 # external, so the runtime image needs the Bun runtime *and* a `node_modules`
 # (here: `sharp` plus its prebuilt native binaries for this image's libc).
 

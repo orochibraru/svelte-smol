@@ -7,6 +7,6 @@ import adapter from "../../../index.ts";
 const compile = process.env.SMOL_COMPILE !== "false";
 
 export default defineConfig({
-	plugins: [sveltekit({ adapter: adapter({ compile }) })],
+	plugins: [sveltekit({ adapter: adapter({ buildOptions: { compile } }) })],
 	logLevel: "warn",
 });

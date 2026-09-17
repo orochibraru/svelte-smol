@@ -1,55 +1,31 @@
-/* global BUILD_OPTIONS */
-
-import { env } from "ENV";
+import { healthcheck_path } from "MANIFEST";
+import server_options from "SERVER_OPTIONS";
 import process from "node:process";
+import { env, number_env } from "./env.ts";
 
-const { healthcheck } = BUILD_OPTIONS;
+const unix = env("SOCKET_PATH", server_options.unix);
+const timeout = number_env("HEALTHCHECK_TIMEOUT", 2000);
+const path = env("HEALTHCHECK_PATH", healthcheck_path || "/_health");
 
-if (!healthcheck) {
-	console.error("healthcheck is disabled for this build");
-	process.exit(2);
-}
+// a server bound to a wildcard address is reached over loopback
+const raw_host = env("HOST", server_options.hostname) ?? "";
+const host = ["", "0.0.0.0", "::"].includes(raw_host) ? "127.0.0.1" : raw_host;
+const port = env("PORT", server_options.port?.toString()) ?? 3000;
 
-const socket = env("SOCKET_PATH", false);
-const timeout_ms = Number.parseInt(env("HEALTHCHECK_TIMEOUT", "2000"), 10);
-const path = env("HEALTHCHECK_PATH", healthcheck.path);
-
-// A server bound to a wildcard address is reached over loopback.
-const raw_host = env("HOST", "0.0.0.0");
-const host =
-	raw_host === "0.0.0.0" || raw_host === "::" || raw_host === ""
-		? "127.0.0.1"
-		: raw_host;
-const port = env("PORT", "3000");
-
-const url = socket
+const url = unix
 	? `http://localhost${path}`
 	: `http://${host.includes(":") ? `[${host}]` : host}:${port}${path}`;
 
-function fail(reason: string): never {
-	console.error(`unhealthy: ${reason}`);
-	process.exit(1);
-}
-
 try {
 	const response = await fetch(url, {
-		headers: { "user-agent": "svelte-smol-healthcheck" },
-		signal: AbortSignal.timeout(timeout_ms),
-		...(socket ? { unix: socket } : {}),
+		signal: AbortSignal.timeout(timeout),
+		...(unix ? { unix } : {}),
 	});
-
-	if (!response.ok) {
-		fail(`${url} -> ${response.status}`);
-	}
-
-	const body = (await response.json().catch(() => null)) as {
-		status?: string;
-	} | null;
-	if (body?.status && body.status !== "ok") {
-		fail(`status=${body.status}`);
-	}
-
+	if (!response.ok) throw new Error(`status ${response.status}`);
 	process.exit(0);
 } catch (error) {
-	fail(`${url} -> ${error instanceof Error ? error.message : String(error)}`);
+	console.error(
+		`unhealthy: ${url} -> ${error instanceof Error ? error.message : String(error)}`,
+	);
+	process.exit(1);
 }

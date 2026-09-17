@@ -1,42 +1,28 @@
-// Ambient declarations for the virtual specifiers/globals `templates/*.ts`
-// reference. None of these are real modules or runtime globals at
-// type-check time, `index.ts`'s adapt() resolves them via a raw text
-// replacement over the compiled output (see its `builder.copy(..., {
-// replace })` call), so this file exists purely so `templates/*.ts`
-// typechecks against the shape that replacement actually produces.
-
-declare module "ENV" {
-	export function env(name: string, fallback: string): string;
-	export function env(name: string, fallback: false): string | false;
-	export function env(name: string, fallback?: undefined): string | undefined;
-}
-
-declare module "HANDLER" {
-	export function getHandler(): {
-		fetch: (
-			request: Request,
-			server: Bun.Server<undefined>,
-		) => Response | Promise<Response>;
-		websocket: Bun.WebSocketHandler<undefined> | undefined;
-	};
-}
+// Virtual modules the `templates/*.ts` import. `index.ts`'s Bun plugin resolves
+// them at build time; these declarations only exist so the templates typecheck.
 
 declare module "MANIFEST" {
+	export const app_dir: string;
 	export const base: string;
-	/** `builder.getAppPath()`, base included, no leading slash. */
-	export const app_path: string;
-	export const prerendered: Set<string>;
+	/** assets are embedded into a compiled executable */
+	export const embed: boolean;
+	export const env_prefix: string;
+	export const origin: string | undefined;
+	export const healthcheck_path: string | false;
 }
 
 declare module "SERVER" {
 	export const server: import("@sveltejs/kit").Server;
 }
 
-declare const ENV_PREFIX: string;
-declare const BUILD_OPTIONS: {
-	serveAssets: boolean;
-	precompress: boolean;
-	healthcheck: false | { path: string };
-	compiled: boolean;
-};
-declare const SERVE_OPTIONS: Record<string, unknown>;
+declare module "ROUTES" {
+	export const routes: import("bun").Serve.Routes<undefined, string>;
+	export const server_assets: Map<string, import("bun").BunFile>;
+}
+
+declare module "SERVER_OPTIONS" {
+	const options: NonNullable<
+		import("./index.ts").AdapterOptions["serverOptions"]
+	>;
+	export default options;
+}

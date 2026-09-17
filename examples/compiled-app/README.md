@@ -16,8 +16,8 @@ bun run dev
 bun run build
 ```
 
-Produces `build/server` (the executable) plus `build/client/` and
-`build/prerendered/`. Run it from anywhere:
+Produces `build/server`, a single executable with every static asset and
+prerendered page embedded, plus `build/healthcheck`. Run it from anywhere:
 
 ```sh
 ./build/server            # listens on 0.0.0.0:3000

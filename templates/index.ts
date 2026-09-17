@@ -1,101 +1,114 @@
-import { env } from "ENV";
-import { getHandler } from "HANDLER";
+import { healthcheck_path } from "MANIFEST";
+import { routes } from "ROUTES";
+import server_options from "SERVER_OPTIONS";
+import fs from "node:fs";
 import process from "node:process";
+import type { Serve } from "bun";
+import { boolean_env, bytes_env, env, number_env } from "./env.ts";
+import { handler } from "./handler.ts";
 
-export const path = env("SOCKET_PATH", false);
-export const host = env("HOST", "0.0.0.0");
-export const port = env("PORT", "3000");
-
-const body_size_limit = parse_as_bytes(env("BODY_SIZE_LIMIT", "512K"));
-if (Number.isNaN(body_size_limit)) {
+// nothing enforces `engines.bun` at install time, and the build may have run on a newer Bun.
+// order() rather than satisfies(): a range would reject canary builds such as 1.5.0-canary.1
+if (Bun.semver.order(Bun.version, "1.4.0") < 0) {
 	throw new Error(
-		`Invalid BODY_SIZE_LIMIT: '${env("BODY_SIZE_LIMIT", "512K")}'. Please provide a numeric value.`,
+		`@orochibraru/svelte-smol requires Bun 1.4 or newer, but this is Bun ${Bun.version}`,
 	);
 }
 
-const idle_timeout = Number.parseInt(env("IDLE_TIMEOUT", "10"), 10);
-const { fetch: handlerFetch, websocket } = getHandler();
+const options = { ...server_options } as Serve.Options<undefined, string>;
 
-const options = {
-	...SERVE_OPTIONS,
-	fetch: handlerFetch,
-	idleTimeout: idle_timeout,
-	maxRequestBodySize: body_size_limit,
-	...(path ? { unix: path } : { hostname: host, port: port }),
-	...(websocket ? { websocket } : {}),
-};
+const unix = env("SOCKET_PATH", options.unix);
 
-const shutdown_timeout_ms =
-	Number.parseInt(env("SHUTDOWN_TIMEOUT", "30"), 10) * 1000;
+if (unix) {
+	options.unix = unix;
+	delete options.hostname;
+	delete options.port;
+	delete options.reusePort;
+	delete options.ipv6Only;
 
-const server = Bun.serve(options as Parameters<typeof Bun.serve>[0]);
+	// an unclean shutdown leaves the socket file behind and the next listen would
+	// fail with EADDRINUSE; the zero-size check (same heuristic as adapter-node)
+	// avoids deleting a regular file that happens to sit at this path
+	try {
+		if (fs.statSync(unix).size === 0) fs.rmSync(unix);
+	} catch {
+		// ignore
+	}
+} else {
+	delete options.unix;
+	options.hostname = env("HOST", options.hostname);
+	// always set an explicit port: left undefined, Bun.serve reads the unprefixed
+	// BUN_PORT/PORT/NODE_PORT itself, bypassing envPrefix isolation
+	options.port = env("PORT", options.port?.toString()) ?? 3000;
+	options.reusePort = boolean_env("REUSE_PORT", options.reusePort);
+	options.ipv6Only = boolean_env("IPV6_ONLY", options.ipv6Only);
+}
 
-const rows: Array<[string, string]> = [
-	["Listening on", path ? `unix:${path}` : `${server.url}`],
-	["WebSocket", websocket ? "enabled" : "disabled"],
-	["Body limit", format_bytes(body_size_limit)],
-	["Idle timeout", `${idle_timeout}s`],
-	["Shutdown grace", `${shutdown_timeout_ms / 1000}s`],
-	["Runtime", `Bun ${Bun.version} (${process.platform}/${process.arch})`],
-	["PID", `${process.pid}`],
-];
-console.log(
-	`\n  SvelteKit server ready\n\n${rows
-		.map(([label, value]) => `  ${`${label}:`.padEnd(16)}${value}`)
-		.join("\n")}\n`,
+// not IDLE_TIMEOUT: that name means idle-shutdown seconds on adapter-node, and a
+// carried-over value would crash on the 255 cap or silently kill slow requests
+options.idleTimeout = number_env(
+	"CONNECTION_IDLE_TIMEOUT",
+	options.idleTimeout,
+	{ max: 255 },
 );
+options.development =
+	boolean_env("DEVELOPMENT") ?? options.development ?? false;
+options.maxRequestBodySize = bytes_env(
+	"BODY_SIZE_LIMIT",
+	options.maxRequestBodySize ?? 512 * 1024,
+);
+
+const shutdown_timeout = number_env("SHUTDOWN_TIMEOUT", 30);
+
+options.fetch = handler;
+options.routes = healthcheck_path
+	? {
+			...routes,
+			[healthcheck_path]: {
+				GET: () =>
+					Response.json(
+						{ status: "ok", uptime: Math.round(process.uptime()) },
+						{ headers: { "cache-control": "no-store" } },
+					),
+			},
+		}
+	: routes;
+
+const server = Bun.serve(options);
+
+console.log(unix ? `Listening on ${unix}` : `Listening on ${server.url}`);
 
 let shutting_down = false;
 
-async function graceful_shutdown(reason: "SIGINT" | "SIGTERM" | "IDLE") {
-	if (shutting_down) {
-		console.info(`Received ${reason} again, forcing immediate shutdown.`);
-		process.exit(1);
-	}
+async function graceful_shutdown(reason: "SIGINT" | "SIGTERM") {
+	if (shutting_down) return process.exit(1);
 	shutting_down = true;
 
-	console.info(
-		`Stopping server (waiting up to ${shutdown_timeout_ms / 1000}s for in-flight requests to finish)...`,
-	);
-	process.emit("sveltekit:shutdown", reason);
-
-	const force_timer = setTimeout(() => {
-		console.warn(
-			`Graceful shutdown exceeded ${shutdown_timeout_ms / 1000}s, forcing.`,
+	if (server.pendingRequests !== 0) {
+		console.log(
+			`Waiting for ${server.pendingRequests} requests to finish before shutting down...\n` +
+				"Press Ctrl+C again to force shutdown.",
 		);
-		server.stop(true).finally(() => process.exit(1));
-	}, shutdown_timeout_ms);
-
-	await server.stop();
-	clearTimeout(force_timer);
-	console.info("Stopped server");
-	process.exit(0);
-}
-
-process.on("SIGTERM", graceful_shutdown);
-process.on("SIGINT", graceful_shutdown);
-
-export { server };
-
-function parse_as_bytes(value: string): number {
-	const units = value.at(-1)?.toUpperCase();
-	const multiplier =
-		{
-			B: 1,
-			G: 1024 * 1024 * 1024,
-			K: 1024,
-			M: 1024 * 1024,
-		}[units ?? "B"] ?? 1;
-	return Number(multiplier !== 1 ? value.slice(0, -1) : value) * multiplier;
-}
-
-function format_bytes(bytes: number): string {
-	const units = ["B", "KB", "MB", "GB"];
-	let value = bytes;
-	let unit = 0;
-	while (value >= 1024 && unit < units.length - 1) {
-		value /= 1024;
-		unit++;
 	}
-	return `${Number.isInteger(value) ? value : value.toFixed(1)} ${units[unit]}`;
+
+	// stop() waits for in-flight requests, and an open event stream is one forever,
+	// so race the drain against the deadline. The timer must stay referenced: a
+	// draining server no longer holds the event loop open on its own
+	let deadline: ReturnType<typeof setTimeout> | undefined;
+	const drained = await Promise.race([
+		server.stop().then(() => true),
+		new Promise<boolean>((resolve) => {
+			deadline = setTimeout(() => resolve(false), shutdown_timeout * 1000);
+		}),
+	]);
+	clearTimeout(deadline);
+
+	// force-close aborts the in-flight handlers, so shutdown listeners do not tear
+	// down resources those handlers still hold
+	if (!drained) await server.stop(true);
+
+	process.emit("sveltekit:shutdown" as "exit", reason as never);
 }
+
+process.on("SIGTERM", () => graceful_shutdown("SIGTERM"));
+process.on("SIGINT", () => graceful_shutdown("SIGINT"));
