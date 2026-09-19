@@ -26,6 +26,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          # Write deploy key, allowed to bypass the PR-only ruleset, so the
+          # example sync below can push straight to the branch.
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
 
       - uses: oven-sh/setup-bun@v2
 
