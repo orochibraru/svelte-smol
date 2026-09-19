@@ -166,7 +166,10 @@ const ssr = async (request: Request, bunServer: Bun.Server<undefined>) => {
 		return asset;
 	}
 
-	const baseOrigin = origin || get_origin(request.headers);
+	const baseOrigin =
+		same_host_remote_origin(request, url) ||
+		origin ||
+		get_origin(request.headers);
 	const path = request.url.slice(request.url.split("/", 3).join("/").length);
 	const newRequest = new Request(baseOrigin + path, request);
 
@@ -232,4 +235,25 @@ function get_origin(headers: Headers) {
 	const port = port_header && headers.get(port_header);
 
 	return port ? `${protocol}://${host}:${port}` : `${protocol}://${host}`;
+}
+
+// Remote function calls are CSRF-checked against the request origin. When the
+// browser's Origin header matches the Host, use it instead of ORIGIN.
+function same_host_remote_origin(request: Request, url: URL) {
+	const request_origin = request.headers.get("origin");
+	if (
+		!request_origin ||
+		!url.pathname.startsWith(`${base}/${manifest.appDir}/remote/`)
+	) {
+		return null;
+	}
+	try {
+		const parsed = new URL(request_origin);
+		const host =
+			(host_header && request.headers.get(host_header)) ||
+			request.headers.get("host");
+		return parsed.host === host ? parsed.origin : null;
+	} catch {
+		return null;
+	}
 }
