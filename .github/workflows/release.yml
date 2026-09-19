@@ -46,6 +46,8 @@ jobs:
       # semantic-release tags HEAD when it publishes. If it did, point the
       # example apps at the new version and push that back (skipping CI).
       - name: Sync example versions
+        # waits for npm to finish processing the publish (see bump-examples.ts)
+        timeout-minutes: 30
         run: |
           version="$(git tag --points-at HEAD | sed -n 's/^v//p' | sort -V | tail -1)"
           if [ -z "$version" ]; then
