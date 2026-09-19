@@ -58,7 +58,6 @@ jobs:
             exit 0
           fi
           echo "Syncing examples to $version"
-          git checkout -- package.json
           bun run scripts/bump-examples.ts "$version"
           if git diff --quiet -- examples; then
             echo "Examples already current."
