@@ -1,6 +1,6 @@
 {
 	"name": "@orochibraru/svelte-smol",
-	"version": "1.3.2",
+	"version": "1.8.1",
 	"type": "module",
 	"main": "./dist/index.js",
 	"keywords": [

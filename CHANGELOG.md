@@ -1,3 +1,10 @@
+## [1.8.1](https://github.com/orochibraru/svelte-smol/compare/v1.8.0...v1.8.1) (2026-09-19)
+
+### Bug Fixes
+
+* docs code parsing ([c175405](https://github.com/orochibraru/svelte-smol/commit/c175405082e418a34994db657fbb32806adac2a7))
+* release system ([43f3de7](https://github.com/orochibraru/svelte-smol/commit/43f3de70b0f7697f110283724a1b6863dddbc0e8))
+
 ## [1.3.1](https://git.ombrage.space/orochibraru/svelte-bun-adapter/compare/v1.3.0...v1.3.1) (2026-08-29)
 
 
