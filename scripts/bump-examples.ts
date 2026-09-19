@@ -51,18 +51,21 @@ for (const entry of entries) {
 	await Bun.write(manifest, `${JSON.stringify(pkg, null, "\t")}\n`);
 	console.log(`  ${entry.name}: ${PKG} -> ${range}`);
 
-	// Refresh bun.lock without a full install. The freshly published version's
-	// manifest can take a moment to propagate, so retry before giving up.
+	// Refresh bun.lock without a full install. A fresh publish can take a few
+	// minutes to show up in the registry, so poll for up to 5 minutes, with
+	// `--no-cache` so each attempt refetches the manifest instead of reusing
+	// the stale one bun cached on the first try.
 	const cwd = fileURLToPath(dir);
+	const deadline = Date.now() + 5 * 60_000;
 	let locked = false;
-	for (let attempt = 1; attempt <= 5 && !locked; attempt++) {
-		const proc = Bun.spawnSync(["bun", "install", "--lockfile-only"], {
-			cwd,
-			stdout: "inherit",
-			stderr: "inherit",
-		});
+	while (!locked) {
+		const proc = Bun.spawnSync(
+			["bun", "install", "--lockfile-only", "--no-cache"],
+			{ cwd, stdout: "inherit", stderr: "inherit" },
+		);
 		locked = proc.success;
-		if (!locked && attempt < 5) await Bun.sleep(attempt * 3000);
+		if (locked || Date.now() >= deadline) break;
+		await Bun.sleep(15_000);
 	}
 	if (!locked) {
 		console.error(`  ${entry.name}: could not refresh bun.lock for ${range}`);

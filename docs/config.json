@@ -1,0 +1,36 @@
+{
+	"$schema": "https://orochibraru.com/docs-config.schema.json",
+	"categories": [
+		{
+			"title": "Getting started",
+			"description": "Install the adapter and ship your first binary.",
+			"icon": "rocket",
+			"pages": [
+				{ "slug": "getting-started", "icon": "play" },
+				{
+					"slug": "options",
+					"title": "Adapter options",
+					"icon": "sliders-horizontal"
+				}
+			]
+		},
+		{
+			"title": "Running in production",
+			"description": "Configure, deploy and put it behind a proxy.",
+			"icon": "server",
+			"pages": [
+				{ "slug": "env", "title": "Environment variables", "icon": "settings" },
+				{ "slug": "deployment", "icon": "container" },
+				{ "slug": "health-check", "icon": "heart-pulse" },
+				{ "slug": "reverse-proxy", "icon": "shield" },
+				{ "slug": "native-addons", "icon": "package" }
+			]
+		},
+		{
+			"title": "Internals",
+			"description": "How the code fits together.",
+			"icon": "code",
+			"pages": [{ "slug": "architecture", "icon": "network" }]
+		}
+	]
+}
