@@ -12,7 +12,7 @@ bun add -d @orochibraru/svelte-smol
 
 ## Usage
 
-```js
+```typescript
 // svelte.config.js
 import adapter from "@orochibraru/svelte-smol";
 
@@ -75,7 +75,7 @@ instrumentation — works the same.
 
 ## Options
 
-```js
+```typescript
 adapter({
   out: "build", // output directory
   name: "server", // executable filename within `out`
@@ -101,23 +101,23 @@ runtime the first time you use a target.
 
 ## Runtime environment variables
 
-| Variable           | Default   | Purpose                                                                                         |
-| ------------------ | --------- | ----------------------------------------------------------------------------------------------- |
-| `HOST`             | `0.0.0.0` | Listen address                                                                                  |
-| `PORT`             | `3000`    | Listen port                                                                                     |
-| `SOCKET_PATH`      | —         | Listen on a Unix socket instead of `HOST`/`PORT`                                                |
-| `ASSETS_DIR`       | —         | Override where `client/` and `prerendered/` are looked up (absolute, or relative to the binary) |
-| `ORIGIN`           | —         | Absolute origin used for request URL resolution                                                 |
-| `PROTOCOL_HEADER`  | —         | Header carrying the forwarded protocol (e.g. `x-forwarded-proto`)                               |
-| `HOST_HEADER`      | —         | Header carrying the forwarded host                                                              |
-| `PORT_HEADER`      | —         | Header carrying the forwarded port                                                              |
-| `ADDRESS_HEADER`   | —         | Header carrying the client address (e.g. `x-forwarded-for`)                                     |
-| `XFF_DEPTH`        | `1`       | Trusted-proxy depth when `ADDRESS_HEADER=x-forwarded-for`                                       |
-| `BODY_SIZE_LIMIT`  | `512K`    | Max request body size (`K`/`M`/`G` suffixes allowed)                                            |
-| `IDLE_TIMEOUT`     | `10`      | Bun socket idle timeout in seconds (SSE responses opt out)                                      |
-| `SHUTDOWN_TIMEOUT` | `30`      | Seconds to wait for in-flight requests on `SIGINT`/`SIGTERM`                                    |
-| `HEALTHCHECK_PATH` | `/_health`| Endpoint the `healthcheck` binary probes (must match the `healthcheck` option)                  |
-| `HEALTHCHECK_TIMEOUT` | `2000` | `healthcheck` binary request timeout in ms                                                     |
+| Variable              | Default    | Purpose                                                                                         |
+| --------------------- | ---------- | ----------------------------------------------------------------------------------------------- |
+| `HOST`                | `0.0.0.0`  | Listen address                                                                                  |
+| `PORT`                | `3000`     | Listen port                                                                                     |
+| `SOCKET_PATH`         | —          | Listen on a Unix socket instead of `HOST`/`PORT`                                                |
+| `ASSETS_DIR`          | —          | Override where `client/` and `prerendered/` are looked up (absolute, or relative to the binary) |
+| `ORIGIN`              | —          | Absolute origin used for request URL resolution                                                 |
+| `PROTOCOL_HEADER`     | —          | Header carrying the forwarded protocol (e.g. `x-forwarded-proto`)                               |
+| `HOST_HEADER`         | —          | Header carrying the forwarded host                                                              |
+| `PORT_HEADER`         | —          | Header carrying the forwarded port                                                              |
+| `ADDRESS_HEADER`      | —          | Header carrying the client address (e.g. `x-forwarded-for`)                                     |
+| `XFF_DEPTH`           | `1`        | Trusted-proxy depth when `ADDRESS_HEADER=x-forwarded-for`                                       |
+| `BODY_SIZE_LIMIT`     | `512K`     | Max request body size (`K`/`M`/`G` suffixes allowed)                                            |
+| `IDLE_TIMEOUT`        | `10`       | Bun socket idle timeout in seconds (SSE responses opt out)                                      |
+| `SHUTDOWN_TIMEOUT`    | `30`       | Seconds to wait for in-flight requests on `SIGINT`/`SIGTERM`                                    |
+| `HEALTHCHECK_PATH`    | `/_health` | Endpoint the `healthcheck` binary probes (must match the `healthcheck` option)                  |
+| `HEALTHCHECK_TIMEOUT` | `2000`     | `healthcheck` binary request timeout in ms                                                      |
 
 Set `envPrefix` to namespace these (`envPrefix: "MY_APP_"` → `MY_APP_PORT`).
 

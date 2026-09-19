@@ -1,6 +1,6 @@
 # Adapter Options
 
-```js
+```typescript
 adapter({
   out: "build",
   name: "server",
@@ -39,7 +39,7 @@ These are merged in _before_ the adapter's own fields (`fetch`, `idleTimeout`,
 the server but not override request handling. Use the matching env vars
 (`IDLE_TIMEOUT`, `BODY_SIZE_LIMIT`, `HOST`/`PORT`, `SOCKET_PATH`) for those.
 
-```js
+```typescript
 adapter({
   serveOptions: {
     tls: { cert: Bun.file("cert.pem"), key: Bun.file("key.pem") },

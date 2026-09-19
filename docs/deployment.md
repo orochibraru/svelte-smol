@@ -40,7 +40,7 @@ working examples live in
 `target` accepts any Bun compile target, so you can build a Linux binary from a
 Mac:
 
-```js
+```typescript
 adapter({ target: "bun-linux-x64-musl" }); // Alpine
 ```
 

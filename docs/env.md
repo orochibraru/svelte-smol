@@ -53,7 +53,7 @@ See [Reverse proxy](reverse-proxy.md) for when to set these.
 
 Set the `envPrefix` adapter option to namespace every variable above:
 
-```js
+```typescript
 adapter({ envPrefix: "MY_APP_" }); // reads MY_APP_PORT, MY_APP_HOST, …
 ```
 

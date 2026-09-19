@@ -10,7 +10,7 @@ bun add -d @orochibraru/svelte-smol
 
 ## 2. Configure the adapter
 
-```js
+```typescript
 // svelte.config.js
 import adapter from "@orochibraru/svelte-smol";
 

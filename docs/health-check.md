@@ -3,7 +3,7 @@
 With `healthcheck` on (the default) the build produces a second, tiny executable
 — `build/healthcheck` — and the server answers `GET /_health`:
 
-```json
+```typescripton
 {
   "status": "ok",
   "uptime": 42,
@@ -37,7 +37,7 @@ healthcheck:
 
 ## Changing the path
 
-```js
+```typescript
 adapter({ healthcheck: { path: "/healthz" } });
 ```
 

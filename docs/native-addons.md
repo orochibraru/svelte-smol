@@ -4,7 +4,7 @@
 (`.node`) addon — `sharp`, `better-sqlite3`, `sqlite3` — can't be embedded that
 way. Set `compile: false` to emit a plain bundle instead:
 
-```js
+```typescript
 adapter({ compile: false });
 ```
 

@@ -136,7 +136,7 @@ const templates = fileURLToPath(new URL("./templates", import.meta.url));
  * @returns the configured SvelteKit {@link Adapter}
  *
  * @example
- * ```js
+ * ```typescript
  * // svelte.config.js
  * import adapter from "@orochibraru/svelte-smol";
  *
