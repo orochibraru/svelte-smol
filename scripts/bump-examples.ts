@@ -2,7 +2,7 @@
 
 /**
  * Point every `examples/*` app at a given release of this package and refresh
- * its lockfile. Run by the release workflow right after `semantic-release`
+ * its lockfile. Run by the release workflow right after `releaser`
  * publishes, so the examples always reference the latest published version.
  *
  *   bun run scripts/bump-examples.ts 1.7.0

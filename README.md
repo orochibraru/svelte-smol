@@ -147,11 +147,13 @@ wiring is needed.
 
 ## Releases
 
-Automated by [semantic-release](https://semantic-release.gitbook.io/) from
+Automated by [releaser](https://github.com/orochibraru/releaser) from
 [Conventional Commits](https://www.conventionalcommits.org/):
 
-- `fix:` / `perf:` → **patch**, `feat:` → **minor**, `feat!:` or a
-  `BREAKING CHANGE:` footer → **major**
-- `docs:` `refactor:` `test:` `chore:` `build:` `ci:` `style:` → **no release**
-- `feat:` / `fix:` scoped to `ci`, `build`, `deps`, `dev`, `repo`, `test`,
-  `example`, `release` → **no release** (they don't touch the published package)
+- `fix:` `perf:` `revert:` `feat:` `docs:` `refactor:`, and breaking changes
+  (`feat!:` or a `BREAKING CHANGE:` footer) → **patch**
+- `test:` `chore:` `build:` `ci:` `style:` → **no release**
+- Pushes that don't touch the published package (`index.ts`, `templates/`,
+  `package.json`, `tsconfig*.json`) don't run a release at all
+- `main` publishes `vX.Y.Z` to npm `latest`; `next` publishes `vX.Y.Z-next.N`
+  to npm `next`
