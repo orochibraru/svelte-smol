@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.3](https://github.com/orochibraru/svelte-smol/compare/v1.8.2...v1.8.3) (2026-09-29)
+
+### Bug Fixes
+
+* **kit3:** honour runtime ORIGIN (regression in 1.8.0: form actions failed CSRF on plain-HTTP deployments) ([857ce39](https://github.com/orochibraru/svelte-smol/commit/857ce3923362cd686d0602b73eb498ea89ececdc))
+
 ## [1.8.2](https://github.com/orochibraru/svelte-smol/compare/v1.8.1...v1.8.2) (2026-09-29)
 
 ### Code Refactoring
