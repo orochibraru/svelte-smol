@@ -9,6 +9,8 @@ const protocol_header = env("PROTOCOL_HEADER", "").toLowerCase();
 const host_header = env("HOST_HEADER", "").toLowerCase();
 const port_header = env("PORT_HEADER", "").toLowerCase();
 const xff_depth = number_env("XFF_DEPTH", 1, { min: 1 });
+// runtime wins over paths.origin: the same build is deployed at different origins
+const origin_env = parse_origin(env("ORIGIN", undefined));
 
 await server.init({
 	env: Bun.env as Record<string, string>,
@@ -43,6 +45,7 @@ function normalize_request(request: Request): Request | Response {
 		const url = new URL(request.url);
 		const request_origin =
 			same_host_remote_origin(request, url) ||
+			origin_env ||
 			origin ||
 			get_origin(request, url);
 		return request_origin === url.origin
@@ -54,6 +57,19 @@ function normalize_request(request: Request): Request | Response {
 		);
 		return new Response("Bad Request", { status: 400 });
 	}
+}
+
+function parse_origin(value: string | undefined): string | undefined {
+	// empty means unset, as in the Kit 2 handler
+	if (!value) return undefined;
+	// .origin drops any path or trailing slash, so the url.origin comparison holds
+	const url = URL.parse(value);
+	if (!url || !/^https?:$/.test(url.protocol)) {
+		throw new Error(
+			`Invalid value for environment variable ${env_prefix}ORIGIN: ${JSON.stringify(value)} (expected an absolute URL, e.g. https://my.site)`,
+		);
+	}
+	return url.origin;
 }
 
 function get_origin(request: Request, url: URL): string {

@@ -10,6 +10,9 @@ no JS files to ship, just one binary plus its static assets.
 bun add -d @orochibraru/svelte-smol
 ```
 
+Every merge to `main` ships as `@orochibraru/svelte-smol@canary`; stable
+releases go out under `latest`.
+
 ## Usage
 
 ```typescript
@@ -41,7 +44,7 @@ implementation. Upgrading SvelteKit is enough to switch.
 | Static assets       | `client/` and `prerendered/` beside it  | embedded in the executable                     |
 | Build options       | top level (`compile`, `target`, …)      | under `buildOptions`                           |
 | `Bun.serve` options | `serveOptions`                          | `serverOptions` (JSON-serializable only)       |
-| Public origin       | `ORIGIN` env var                        | SvelteKit's `paths.origin`                     |
+| Public origin       | `ORIGIN` env var                        | `ORIGIN` env var, else `paths.origin`          |
 
 The rest of this README covers SvelteKit 2. For SvelteKit 3's options,
 environment variables and output, see [SvelteKit 3](docs/sveltekit-3.md).
@@ -73,7 +76,7 @@ environment variables and output, see [SvelteKit 3](docs/sveltekit-3.md).
    | `serveOptions`                    | `serverOptions` (JSON-serializable only)         |
    | `serveAssets: false`              | removed, assets are embedded                     |
    | `IDLE_TIMEOUT`                    | `CONNECTION_IDLE_TIMEOUT`                        |
-   | `ORIGIN`, `ASSETS_DIR`            | removed, use `paths.origin`; assets are embedded |
+   | `ASSETS_DIR`                      | removed, assets are embedded                     |
 
 4. Deploy the `build/server` executable on its own: it no longer needs the
    `client/` and `prerendered/` folders next to it.
@@ -170,7 +173,7 @@ runtime the first time you use a target.
 | `PORT`                | `3000`     | Listen port                                                                                     |
 | `SOCKET_PATH`         | —          | Listen on a Unix socket instead of `HOST`/`PORT`                                                |
 | `ASSETS_DIR`          | —          | Override where `client/` and `prerendered/` are looked up (absolute, or relative to the binary) |
-| `ORIGIN`              | —          | Absolute origin used for request URL resolution                                                 |
+| `ORIGIN`              | —          | Public origin, read at runtime (Kit 2 and 3; on Kit 3 it overrides `paths.origin`)              |
 | `PROTOCOL_HEADER`     | —          | Header carrying the forwarded protocol (e.g. `x-forwarded-proto`)                               |
 | `HOST_HEADER`         | —          | Header carrying the forwarded host                                                              |
 | `PORT_HEADER`         | —          | Header carrying the forwarded port                                                              |

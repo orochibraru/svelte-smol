@@ -36,7 +36,7 @@
 		"build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R kit2/templates dist/kit2/templates && cp -R kit3/templates dist/kit3/templates",
 		"prepack": "bun run build",
 		"typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p kit2 && tsc --noEmit -p kit3",
-		"test": "bun test index.test.ts",
+		"test": "bun test index.test.ts handler.test.ts",
 		"test:integration": "bun test integration",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",

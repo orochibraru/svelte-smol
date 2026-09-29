@@ -95,6 +95,7 @@ cross-compile; the healthcheck binary uses the same target.
 | `HOST`                    | `0.0.0.0`  | Listen address                                                      |
 | `PORT`                    | `3000`     | Listen port                                                         |
 | `SOCKET_PATH`             | none       | Listen on a Unix socket instead of `HOST`/`PORT`                    |
+| `ORIGIN`                  | none       | Public origin, e.g. `https://my.site`; overrides `paths.origin`     |
 | `REUSE_PORT`              | `false`    | `SO_REUSEPORT`                                                      |
 | `IPV6_ONLY`               | `false`    | Disable dual-stack                                                  |
 | `CONNECTION_IDLE_TIMEOUT` | `10`       | Bun socket idle timeout in seconds, max 255 (SSE responses opt out) |
@@ -110,8 +111,9 @@ cross-compile; the healthcheck binary uses the same target.
 | `HEALTHCHECK_TIMEOUT`     | `2000`     | `healthcheck` binary request timeout in ms                          |
 
 Set `envPrefix` to namespace these (`envPrefix: "MY_APP_"` → `MY_APP_PORT`).
-The public origin comes from SvelteKit's `paths.origin` config, or the request
-headers above.
+The public origin comes from `ORIGIN`, read at runtime so one build can be
+deployed at several origins, then SvelteKit's `paths.origin` config, then the
+request headers above.
 
 ## Health check
 
@@ -138,5 +140,5 @@ It reads the same `HOST` / `PORT` / `SOCKET_PATH` as the server.
 | `serveOptions`                    | `serverOptions` (JSON-serializable only)          |
 | `serveAssets: false`              | removed, assets are embedded                      |
 | `IDLE_TIMEOUT`                    | `CONNECTION_IDLE_TIMEOUT`                         |
-| `ORIGIN`, `ASSETS_DIR`            | removed, use `paths.origin`; assets are embedded  |
+| `ASSETS_DIR`                      | removed, assets are embedded                      |
 

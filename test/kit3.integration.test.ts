@@ -60,6 +60,8 @@ for (const mode of modes) {
 				env: {
 					...process.env,
 					PORT: String(port),
+					// plain HTTP: without ORIGIN, the handler would assume https
+					ORIGIN: `http://localhost:${port}`,
 					CONNECTION_IDLE_TIMEOUT: "2",
 				},
 				stdout: "pipe",
@@ -150,6 +152,19 @@ for (const mode of modes) {
 					headers: { "if-none-match": etag as string },
 				});
 				expect(revalidated.status).toBe(304);
+			});
+
+			test("same-origin form action over plain HTTP passes the CSRF check", async () => {
+				const res = await fetch(`http://localhost:${port}/form`, {
+					method: "POST",
+					headers: {
+						origin: `http://localhost:${port}`,
+						"content-type": "application/x-www-form-urlencoded",
+					},
+					body: "",
+					redirect: "manual",
+				});
+				expect(res.status).toBe(200);
 			});
 
 			test("unmatched path falls through to SSR", async () => {

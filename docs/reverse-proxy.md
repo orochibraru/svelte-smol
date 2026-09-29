@@ -14,6 +14,8 @@ form actions. Pick one:
   ORIGIN=https://my.site
   ```
 
+  Read at runtime; on SvelteKit 3 it overrides `paths.origin`.
+
 - **Forwarded headers** — when the app answers on several hosts:
 
   ```ini

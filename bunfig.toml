@@ -5,4 +5,6 @@ bun = true
 coverage = true
 coverageSkipTestFiles = true
 coverageReporter = ["text"]
+# templates are exercised end to end by the integration suite, not unit tests
+coveragePathIgnorePatterns = ["kit*/templates/**"]
 coverageThreshold = { functions = 1.0, lines = 1.0, statements = 1.0 }

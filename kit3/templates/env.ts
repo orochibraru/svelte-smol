@@ -5,6 +5,7 @@ const expected = new Set([
 	"SOCKET_PATH",
 	"HOST",
 	"PORT",
+	"ORIGIN",
 	"REUSE_PORT",
 	"IPV6_ONLY",
 	"CONNECTION_IDLE_TIMEOUT",

@@ -2,6 +2,10 @@ name: CI
 
 on:
   pull_request:
+  # releaser pushes the release branch over a deploy key before the PR exists,
+  # so its first commit only gets a push run.
+  push:
+    branches: [releaser/release]
   workflow_call:
 
 concurrency:
@@ -13,7 +17,7 @@ jobs:
     name: "TS Checks"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
 
@@ -32,7 +36,7 @@ jobs:
     name: "Tests"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
 

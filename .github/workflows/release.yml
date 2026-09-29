@@ -17,6 +17,10 @@ on:
   # releases what the path filter skipped, or retries a failed run on the latest main
   workflow_dispatch:
 
+# main is canary: every release-worthy push publishes `X.Y.Z-canary.N` under the
+# `canary` dist-tag. releaser keeps a `chore(release): X.Y.Z` PR open; merging it
+# publishes `X.Y.Z` under `latest`.
+
 concurrency:
   group: release
   cancel-in-progress: false
@@ -31,14 +35,16 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     permissions:
-      contents: write # push the release commit + tag, create the GitHub Release
+      contents: write # push tags and the release branch, create the GitHub Release
+      pull-requests: write # open or update the release PR
       id-token: write # npm provenance + trusted publishing (OIDC)
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          # Write deploy key, allowed to bypass the PR-only ruleset, so the
-          # release commit and the example sync can push straight to the branch.
+          # Write deploy key, allowed to bypass the PR-only ruleset. Pushes over
+          # it trigger workflows, unlike github.token, so the release PR gets CI;
+          # the example sync pushes straight to main over it too.
           ssh-key: ${{ secrets.DEPLOY_KEY }}
 
       - uses: oven-sh/setup-bun@v2
@@ -53,21 +59,40 @@ jobs:
       - id: release
         uses: orochibraru/releaser@v1
         with:
-          # everything ships as a patch, breaking changes included
-          rules: breaking=patch,feat=patch,docs=patch,refactor=patch
+          # everything ships as a patch, breaking changes included. Every type
+          # bumps, so every commit a release PR carries went out in a canary.
+          rules: breaking=patch,feat=patch,docs=patch,refactor=patch,style=patch,test=patch,build=patch,ci=patch,chore=patch
+          prerelease: canary
+          release-pr: "true"
 
-      # releaser bumps package.json but doesn't publish; `prepack` builds `dist/`.
+      # releaser doesn't publish; `prepack` builds `dist/`. A canary makes no
+      # commit, so package.json still holds the last stable version: stamp it.
       - name: Publish to npm
         if: steps.release.outputs.released == 'true'
         env:
           # Set NPM_TOKEN to fall back to token auth when npm trusted
           # publishing (OIDC) is not configured for the package.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish
+          VERSION: ${{ steps.release.outputs.version }}
+          DIST_TAG: ${{ steps.release.outputs.prerelease == 'true' && 'canary' || 'latest' }}
+        run: |
+          npm pkg set version="$VERSION"
+          npm publish --tag "$DIST_TAG"
 
-      # Point the example apps at the new version and push that back (skipping CI).
+      # Releases only: the canary tags stay, releaser numbers from them.
+      - name: Keep only the last five canary releases
+        if: steps.release.outputs.prerelease == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --limit 100 --json tagName,isPrerelease \
+            --jq '[.[] | select(.isPrerelease)] | .[5:] | .[].tagName' \
+            | xargs -r -n1 gh release delete --yes
+
+      # Point the example apps at the new stable version and push that back
+      # (skipping CI). Canaries leave them alone.
       - name: Sync example versions
-        if: steps.release.outputs.released == 'true'
+        if: steps.release.outputs.released == 'true' && steps.release.outputs.prerelease == 'false'
         # waits for npm to finish processing the publish (see bump-examples.ts)
         timeout-minutes: 30
         env:
