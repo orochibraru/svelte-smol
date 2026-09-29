@@ -38,6 +38,9 @@ jobs:
 
       - run: bun install --frozen-lockfile --ignore-scripts
 
+      - name: Install the SvelteKit 3 fixture
+        run: bun install --frozen-lockfile --ignore-scripts --cwd test/fixtures/kit3
+
       - name: Test (Unit)
         run: bun run test
 

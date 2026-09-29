@@ -33,11 +33,11 @@
 		"access": "public"
 	},
 	"scripts": {
-		"build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R templates dist/templates",
+		"build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R kit2/templates dist/kit2/templates && cp -R kit3/templates dist/kit3/templates",
 		"prepack": "bun run build",
-		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p kit2 && tsc --noEmit -p kit3",
 		"test": "bun test index.test.ts",
-		"test:integration": "bun test test/integration.test.ts",
+		"test:integration": "bun test integration",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"prepare": "husky"
@@ -53,6 +53,6 @@
 		"vite": "^8.2.2"
 	},
 	"peerDependencies": {
-		"@sveltejs/kit": "^2.0.0"
+		"@sveltejs/kit": "^2.0.0 || ^3.0.0-next.0"
 	}
 }

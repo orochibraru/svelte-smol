@@ -11,7 +11,8 @@
 					"slug": "options",
 					"title": "Adapter options",
 					"icon": "sliders-horizontal"
-				}
+				},
+				{ "slug": "sveltekit-3", "title": "SvelteKit 3", "icon": "sparkles" }
 			]
 		},
 		{

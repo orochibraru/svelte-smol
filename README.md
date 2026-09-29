@@ -29,6 +29,29 @@ The compile step runs under the Bun runtime, so build with:
 bun run vite build
 ```
 
+## SvelteKit 3
+
+SvelteKit 3 (prerelease) is supported by the same package: the adapter detects
+which SvelteKit is building the app. Pass it to the Vite plugin instead of
+`svelte.config.js`:
+
+```typescript
+// vite.config.js
+import { sveltekit } from "@sveltejs/kit/vite";
+import { defineConfig } from "vite";
+import adapter from "@orochibraru/svelte-smol";
+
+export default defineConfig({
+  plugins: [sveltekit({ adapter: adapter() })],
+});
+```
+
+On SvelteKit 3 the assets are embedded in the executable and the options
+change (`buildOptions`, `serverOptions`). Options meant for the other SvelteKit
+version fail the build. See [SvelteKit 3](docs/sveltekit-3.md) for the options,
+environment variables and the migration table. The rest of this README covers
+SvelteKit 2.
+
 ## Output
 
 ```text
@@ -153,7 +176,7 @@ Automated by [releaser](https://github.com/orochibraru/releaser) from
 - `fix:` `perf:` `revert:` `feat:` `docs:` `refactor:`, and breaking changes
   (`feat!:` or a `BREAKING CHANGE:` footer) → **patch**
 - `test:` `chore:` `build:` `ci:` `style:` → **no release**
-- Pushes that don't touch the published package (`index.ts`, `templates/`,
+- Pushes that don't touch the published package (`index.ts`, `kit2/`, `kit3/`,
   `package.json`, `tsconfig*.json`) don't run a release at all
-- `main` publishes `vX.Y.Z` to npm `latest`; `next` publishes `vX.Y.Z-next.N`
-  to npm `next`
+- Every release is published from `main` to npm `latest`, for both SvelteKit
+  versions

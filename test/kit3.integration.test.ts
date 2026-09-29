@@ -3,7 +3,7 @@ import { existsSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-const fixture = fileURLToPath(new URL("./fixtures/basic", import.meta.url));
+const fixture = fileURLToPath(new URL("./fixtures/kit3", import.meta.url));
 const buildDir = `${fixture}/build`;
 
 async function waitForReady(url: string, timeoutMs = 10_000) {
@@ -20,56 +20,17 @@ async function waitForReady(url: string, timeoutMs = 10_000) {
 }
 
 const modes = [
-	{ label: "compiled binary", compile: true, argv: [`${buildDir}/server`] },
 	{
-		label: "index.js bundle",
+		label: "kit 3, compiled binary",
+		compile: true,
+		argv: [`${buildDir}/server`],
+	},
+	{
+		label: "kit 3, index.js bundle",
 		compile: false,
 		argv: ["bun", `${buildDir}/index.js`],
 	},
 ] as const;
-
-test("the published package has no runtime dependencies", async () => {
-	const pkg = await Bun.file(
-		new URL("../package.json", import.meta.url),
-	).json();
-	expect(pkg.dependencies ?? {}).toEqual({});
-});
-
-test("`bun run build` emits Node-loadable JS that Node-based consumers import", async () => {
-	const root = fileURLToPath(new URL("..", import.meta.url));
-	const build = Bun.spawnSync(["bun", "run", "build"], {
-		cwd: root,
-		stdout: "pipe",
-		stderr: "pipe",
-	});
-	if (!build.success) {
-		throw new Error(`build failed:\n${build.stderr.toString()}`);
-	}
-
-	const pkg = await Bun.file(`${root}/package.json`).json();
-	const entry = `${root}/${pkg.exports["."].default}`;
-	expect(existsSync(entry)).toBe(true);
-	expect(existsSync(`${root}/${pkg.exports["."].types}`)).toBe(true);
-	// the entry templates must sit next to the emitted entry, not just at the
-	// package root, so `new URL("./templates", import.meta.url)` resolves them
-	expect(existsSync(`${root}/dist/templates/handler.ts`)).toBe(true);
-
-	// load it the way a Node-based SvelteKit config would
-	const node = Bun.spawnSync(
-		[
-			"node",
-			"--input-type=module",
-			"-e",
-			`import(${JSON.stringify(entry)}).then(m => { if (typeof m.default !== "function") process.exit(1); })`,
-		],
-		{ stdout: "pipe", stderr: "pipe" },
-	);
-	if (!node.success) {
-		throw new Error(
-			`node could not import the built entry:\n${node.stderr.toString()}`,
-		);
-	}
-});
 
 for (const mode of modes) {
 	describe(mode.label, () => {
@@ -92,11 +53,15 @@ for (const mode of modes) {
 				throw new Error(`vite build failed:\n${build.stderr.toString()}`);
 			}
 
-			// Run from an unrelated cwd: the server must locate its client/ and
-			// prerendered/ folders from its own path, not process.cwd().
+			// Run from an unrelated cwd: the server must locate its assets from its
+			// own path (or the embedded copies), not process.cwd().
 			server = Bun.spawn([...mode.argv], {
 				cwd: tmpdir(),
-				env: { ...process.env, PORT: String(port), IDLE_TIMEOUT: "2" },
+				env: {
+					...process.env,
+					PORT: String(port),
+					CONNECTION_IDLE_TIMEOUT: "2",
+				},
 				stdout: "pipe",
 				stderr: "pipe",
 			});
@@ -119,7 +84,8 @@ for (const mode of modes) {
 					const stat = statSync(`${buildDir}/index.js`);
 					expect(stat.isFile()).toBe(true);
 					expect(stat.size).toBeLessThan(10_000_000); // no runtime embedded
-					expect(existsSync(`${buildDir}/server`)).toBe(false);
+					// split chunks, not a compiled binary
+					expect(statSync(`${buildDir}/server`).isDirectory()).toBe(true);
 				}
 				expect(existsSync(`${buildDir}/index.ts`)).toBe(false);
 				expect(existsSync(`${buildDir}/handler.ts`)).toBe(false);
@@ -132,9 +98,11 @@ for (const mode of modes) {
 				expect(stat.size).toBeGreaterThan(10_000_000);
 			});
 
-			test("writes client assets and prerendered pages", () => {
-				expect(existsSync(`${buildDir}/client/robots.txt`)).toBe(true);
-				expect(existsSync(`${buildDir}/prerendered/about.html`)).toBe(true);
+			test("writes client assets and prerendered pages, unless embedded", () => {
+				expect(existsSync(`${buildDir}/client/robots.txt`)).toBe(!mode.compile);
+				expect(existsSync(`${buildDir}/prerendered/about.html`)).toBe(
+					!mode.compile,
+				);
 			});
 		});
 
@@ -163,10 +131,12 @@ for (const mode of modes) {
 				expect(res.headers.get("content-type")).toContain("text/plain");
 			});
 
-			test("immutable asset gets an immutable Cache-Control, a weak ETag, and 304s", async () => {
+			test("immutable asset gets an immutable Cache-Control, an ETag, and 304s", async () => {
 				const glob = new Bun.Glob("**/*.js");
 				const [asset] = await Array.fromAsync(
-					glob.scan({ cwd: `${buildDir}/client/_app/immutable` }),
+					glob.scan({
+						cwd: `${fixture}/.svelte-kit/output/client/_app/immutable`,
+					}),
 				);
 				const path = `/_app/immutable/${asset}`;
 
@@ -174,7 +144,7 @@ for (const mode of modes) {
 				expect(first.status).toBe(200);
 				expect(first.headers.get("cache-control")).toContain("immutable");
 				const etag = first.headers.get("etag");
-				expect(etag).toMatch(/^W\//);
+				expect(etag).toMatch(/^"[0-9a-f]+"$/);
 
 				const revalidated = await fetch(`http://localhost:${port}${path}`, {
 					headers: { "if-none-match": etag as string },
@@ -223,7 +193,7 @@ for (const mode of modes) {
 			test("SSE response outlives the idle timeout", async () => {
 				const res = await fetch(`http://localhost:${port}/sse-slow`);
 				expect(res.headers.get("content-type")).toBe("text/event-stream");
-				// Two events 6s apart, server running with IDLE_TIMEOUT=2: the second
+				// Two events 6s apart, server running with CONNECTION_IDLE_TIMEOUT=2: the second
 				// only arrives because the adapter cleared the idle timeout here.
 				const body = await res.text();
 				expect(body).toBe("data: 0\n\ndata: 1\n\n");

@@ -1,5 +1,6 @@
 {
 	"compilerOptions": {
+		"allowImportingTsExtensions": true,
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
 		"lib": ["ESNext"],
@@ -13,10 +14,12 @@
 		"types": ["bun"]
 	},
 	"include": [
-		"./internal.d.ts",
 		"./index.ts",
 		"./index.test.ts",
-		"./templates/**/*.ts",
+		"./kit2/index.ts",
+		"./kit2/index.test.ts",
+		"./kit3/index.ts",
+		"./kit3/index.test.ts",
 		"./test/*.ts",
 		"./scripts/**/*.ts"
 	],
