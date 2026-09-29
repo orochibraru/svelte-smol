@@ -5,7 +5,7 @@
     "": {
       "name": "my-app",
       "devDependencies": {
-        "@orochibraru/svelte-smol": "^1.8.2",
+        "@orochibraru/svelte-smol": "^1.8.3",
         "@sveltejs/kit": "^2.63.0",
         "@sveltejs/vite-plugin-svelte": "^7.1.2",
         "@types/bun": "^1.4.0",
@@ -27,7 +27,7 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@orochibraru/svelte-smol": ["@orochibraru/svelte-smol@1.8.2", "", { "peerDependencies": { "@sveltejs/kit": "^2.0.0 || ^3.0.0-next.0" } }, "sha512-HusoIUV54+SouIeai+1mcxVJmJ9mJL3ja/Y/mwcliy/3tF/aR2O3/78XZ/c/fsIAg1qIpcNqQGYWgeXw1sMeOw=="],
+    "@orochibraru/svelte-smol": ["@orochibraru/svelte-smol@1.8.3", "", { "peerDependencies": { "@sveltejs/kit": "^2.0.0 || ^3.0.0-next.0" } }, "sha512-Yr//x++oawFQ8vBHsZ8eRmI1CDYboMVMmNNHhRcuLMOaF+QU1rWOOr+AKpBU7Ltl1aDRaeD2YoIrkKLDTqC8fw=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.147.0", "", {}, "sha512-IJ3s6ltHLp45S0bh7phkX+gJO7A1Wuz2EaqpAhb8WjqDwbzMiWKHhyyT42tskaWjEYXtHtVCPpnBJVT9+dcRLg=="],
 
