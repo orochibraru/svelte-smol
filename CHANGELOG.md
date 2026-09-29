@@ -1,3 +1,11 @@
+# Changelog
+
+## [1.8.2](https://github.com/orochibraru/svelte-smol/compare/v1.8.1...v1.8.2) (2026-09-29)
+
+### Code Refactoring
+
+* kit3 support in main instead of maintaining next branch ([e14696e](https://github.com/orochibraru/svelte-smol/commit/e14696e0b3fbe01029118bfdc8c565174ff03b8b))
+
 ## [1.8.1](https://github.com/orochibraru/svelte-smol/compare/v1.8.0...v1.8.1) (2026-09-19)
 
 ### Bug Fixes
