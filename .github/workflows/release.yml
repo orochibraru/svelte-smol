@@ -14,6 +14,8 @@ on:
       - package.json
       - tsconfig.json
       - tsconfig.build.json
+  # releases what the path filter skipped, or retries a failed run on the latest main
+  workflow_dispatch:
 
 concurrency:
   group: release
