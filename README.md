@@ -29,28 +29,68 @@ The compile step runs under the Bun runtime, so build with:
 bun run vite build
 ```
 
-## SvelteKit 3
+## SvelteKit 2 and SvelteKit 3
 
-SvelteKit 3 (prerelease) is supported by the same package: the adapter detects
-which SvelteKit is building the app. Pass it to the Vite plugin instead of
-`svelte.config.js`:
+One package supports both. There is no flag to set: at build time the adapter
+checks which SvelteKit is running the build and uses the matching
+implementation. Upgrading SvelteKit is enough to switch.
 
-```typescript
-// vite.config.js
-import { sveltekit } from "@sveltejs/kit/vite";
-import { defineConfig } from "vite";
-import adapter from "@orochibraru/svelte-smol";
+|                     | SvelteKit 2                             | SvelteKit 3 (prerelease)                       |
+| ------------------- | --------------------------------------- | ---------------------------------------------- |
+| Adapter config      | `svelte.config.js`                      | `vite.config.js`, passed to `sveltekit()`      |
+| Static assets       | `client/` and `prerendered/` beside it  | embedded in the executable                     |
+| Build options       | top level (`compile`, `target`, …)      | under `buildOptions`                           |
+| `Bun.serve` options | `serveOptions`                          | `serverOptions` (JSON-serializable only)       |
+| Public origin       | `ORIGIN` env var                        | SvelteKit's `paths.origin`                     |
 
-export default defineConfig({
-  plugins: [sveltekit({ adapter: adapter() })],
-});
+The rest of this README covers SvelteKit 2. For SvelteKit 3's options,
+environment variables and output, see [SvelteKit 3](docs/sveltekit-3.md).
+
+### Upgrading to SvelteKit 3
+
+1. Install SvelteKit 3: `bun add -d @sveltejs/kit@next`.
+2. Move the adapter from `svelte.config.js` into the Vite plugin:
+
+   ```typescript
+   // vite.config.js
+   import { sveltekit } from "@sveltejs/kit/vite";
+   import { defineConfig } from "vite";
+   import adapter from "@orochibraru/svelte-smol";
+
+   export default defineConfig({
+     plugins: [sveltekit({ adapter: adapter() })],
+   });
+   ```
+
+3. Rename your options and env vars:
+
+   | SvelteKit 2                       | SvelteKit 3                                      |
+   | --------------------------------- | ------------------------------------------------ |
+   | `compile: false`                  | `buildOptions: { compile: false }`               |
+   | `target: "bun-linux-x64"`         | `buildOptions: { compile: "bun-linux-x64" }`     |
+   | `name: "app"`                     | `buildOptions: { compile: { outfile: "app" } }`  |
+   | `bytecode`, `minify`, `sourcemap` | `buildOptions.*`                                 |
+   | `serveOptions`                    | `serverOptions` (JSON-serializable only)         |
+   | `serveAssets: false`              | removed, assets are embedded                     |
+   | `IDLE_TIMEOUT`                    | `CONNECTION_IDLE_TIMEOUT`                        |
+   | `ORIGIN`, `ASSETS_DIR`            | removed, use `paths.origin`; assets are embedded |
+
+4. Deploy the `build/server` executable on its own: it no longer needs the
+   `client/` and `prerendered/` folders next to it.
+
+`out`, `healthcheck` and `envPrefix` work the same on both. `precompress` too,
+except that SvelteKit 3 ignores it when compiling, since it has no asset files
+to serve. Options that belong to the other SvelteKit version fail the build instead of
+being ignored:
+
+```text
+svelte-smol: compile not supported with SvelteKit 3. See https://github.com/orochibraru/svelte-smol/blob/main/docs/sveltekit-3.md for the option mapping.
 ```
 
-On SvelteKit 3 the assets are embedded in the executable and the options
-change (`buildOptions`, `serverOptions`). Options meant for the other SvelteKit
-version fail the build. See [SvelteKit 3](docs/sveltekit-3.md) for the options,
-environment variables and the migration table. The rest of this README covers
-SvelteKit 2.
+Going back to SvelteKit 2 is the same steps in reverse.
+
+SvelteKit 2 support will be deprecated once SvelteKit 3 is stable, and removed
+in the next major version of this package.
 
 ## Output
 
