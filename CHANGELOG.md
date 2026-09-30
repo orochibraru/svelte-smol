@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.4](https://github.com/orochibraru/svelte-smol/compare/v1.8.3...v1.8.4) (2026-09-30)
+
+### Bug Fixes
+
+* **kit3:** honour Range on static assets (206/416, If-Range, Accept-Ranges), compiled builds answered 200 with the full body ([54a4332](https://github.com/orochibraru/svelte-smol/commit/54a4332d80e3e151c4e2a7072c9294a59e1f7739))
+
 ## Unreleased
 
 ### Bug Fixes
