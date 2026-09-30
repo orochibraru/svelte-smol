@@ -142,16 +142,149 @@ for (const mode of modes) {
 				);
 				const path = `/_app/immutable/${asset}`;
 
-				const first = await fetch(`http://localhost:${port}${path}`);
+				const first = await fetch(`http://localhost:${port}${path}`, {
+					headers: { "accept-encoding": "identity" },
+				});
 				expect(first.status).toBe(200);
 				expect(first.headers.get("cache-control")).toContain("immutable");
 				const etag = first.headers.get("etag");
 				expect(etag).toMatch(/^"[0-9a-f]+"$/);
 
 				const revalidated = await fetch(`http://localhost:${port}${path}`, {
-					headers: { "if-none-match": etag as string },
+					headers: {
+						"accept-encoding": "identity",
+						"if-none-match": etag as string,
+					},
 				});
 				expect(revalidated.status).toBe(304);
+			});
+
+			describe("range requests", () => {
+				// test/fixtures/kit3/static/range.txt
+				const content = "0123456789abcdefghijklmnopqrstuvwxyz";
+				const size = content.length;
+				const ranged = (range: string, headers: Record<string, string> = {}) =>
+					fetch(`http://localhost:${port}/range.txt`, {
+						headers: { range, ...headers },
+					});
+
+				// the validators of the representation ranges apply to
+				const identity = () =>
+					fetch(`http://localhost:${port}/range.txt`, {
+						headers: { "accept-encoding": "identity" },
+					});
+
+				test("no Range: 200 advertising Accept-Ranges", async () => {
+					const res = await identity();
+					expect(res.status).toBe(200);
+					expect(res.headers.get("accept-ranges")).toBe("bytes");
+					expect(await res.text()).toBe(content);
+				});
+
+				test.each([
+					["bytes=0-9", "0123456789", "bytes 0-9/36"],
+					["bytes=10-", "abcdefghijklmnopqrstuvwxyz", "bytes 10-35/36"],
+					["bytes=-5", "vwxyz", "bytes 31-35/36"],
+					["bytes=30-999", "uvwxyz", "bytes 30-35/36"],
+				])(
+					"%s: 206 with exactly those bytes",
+					async (range, body, content_range) => {
+						const res = await ranged(range);
+						expect(res.status).toBe(206);
+						expect(res.headers.get("content-range")).toBe(content_range);
+						expect(res.headers.get("content-length")).toBe(String(body.length));
+						expect(res.headers.get("content-type")).toContain("text/plain");
+						expect(res.headers.get("etag")).toMatch(/^"[0-9a-f]+"$/);
+						expect(res.headers.get("last-modified")).not.toBeNull();
+						expect(await res.text()).toBe(body);
+					},
+				);
+
+				test.each(["bytes=36-", "bytes=100-200", "bytes=-0"])(
+					"%s: 416 with the size",
+					async (range) => {
+						const res = await ranged(range);
+						expect(res.status).toBe(416);
+						expect(res.headers.get("content-range")).toBe(`bytes */${size}`);
+						expect(await res.text()).toBe("");
+					},
+				);
+
+				test.each(["bytes=0-1,4-5", "bytes=abc", "items=0-9"])(
+					"%s: ignored, 200 with the full body",
+					async (range) => {
+						const res = await ranged(range);
+						expect(res.status).toBe(200);
+						expect(res.headers.get("content-range")).toBeNull();
+						expect(await res.text()).toBe(content);
+					},
+				);
+
+				test("If-Range serves the range only while the validator matches", async () => {
+					const full = await identity();
+					const etag = full.headers.get("etag") as string;
+					const last_modified = full.headers.get("last-modified") as string;
+
+					const match = await ranged("bytes=0-9", { "if-range": etag });
+					expect(match.status).toBe(206);
+					expect(await match.text()).toBe("0123456789");
+
+					const dated = await ranged("bytes=0-9", {
+						"if-range": last_modified,
+					});
+					expect(dated.status).toBe(206);
+
+					for (const stale of [
+						'"nope"',
+						`W/${etag}`,
+						new Date(0).toUTCString(),
+					]) {
+						const res = await ranged("bytes=0-9", { "if-range": stale });
+						expect(res.status).toBe(200);
+						expect(await res.text()).toBe(content);
+					}
+				});
+
+				test("a fresh conditional request 304s before any range logic", async () => {
+					const full = await identity();
+					const res = await ranged("bytes=0-9", {
+						"if-none-match": full.headers.get("etag") as string,
+					});
+					expect(res.status).toBe(304);
+				});
+
+				test("immutable asset keeps its headers on 206 and is never served compressed", async () => {
+					const glob = new Bun.Glob("**/*.js");
+					const [asset] = await Array.fromAsync(
+						glob.scan({
+							cwd: `${fixture}/.svelte-kit/output/client/_app/immutable`,
+						}),
+					);
+					const url = `http://localhost:${port}/_app/immutable/${asset}`;
+					const headers = { "accept-encoding": "br, gzip" };
+
+					const whole = await fetch(url, { headers, decompress: false });
+					// precompressed variants only exist on disk, next to the index.js bundle
+					expect(whole.headers.get("content-encoding")).toBe(
+						mode.compile ? null : "br",
+					);
+
+					const res = await fetch(url, {
+						headers: { ...headers, range: "bytes=0-9" },
+						decompress: false,
+					});
+					expect(res.status).toBe(206);
+					expect(res.headers.get("content-encoding")).toBeNull();
+					expect(res.headers.get("cache-control")).toContain("immutable");
+					expect(res.headers.get("etag")).toMatch(/^"[0-9a-f]+"$/);
+					expect(res.headers.get("vary")).toBe(
+						mode.compile ? null : "accept-encoding",
+					);
+					const source = await Bun.file(
+						`${fixture}/.svelte-kit/output/client/_app/immutable/${asset}`,
+					).text();
+					expect(await res.text()).toBe(source.slice(0, 10));
+				});
 			});
 
 			test("same-origin form action over plain HTTP passes the CSRF check", async () => {

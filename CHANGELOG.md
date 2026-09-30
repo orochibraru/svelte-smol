@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* **kit3:** honour `Range` on static assets and prerendered pages (`206`, `416`, `If-Range`, `Accept-Ranges`): a compiled build answered every range request with `200` and the full body, because Bun only applies ranges to on-disk files
+
 ## [1.8.3](https://github.com/orochibraru/svelte-smol/compare/v1.8.2...v1.8.3) (2026-09-29)
 
 ### Bug Fixes

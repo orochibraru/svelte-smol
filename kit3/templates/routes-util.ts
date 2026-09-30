@@ -4,7 +4,13 @@ import { fileURLToPath } from "node:url";
 import type { BunRequest, Serve } from "bun";
 
 type RouteHandler = Serve.Routes<undefined, string>[string];
-type AssetMeta = { hash: string; mtime: number; br?: boolean; gz?: boolean };
+type AssetMeta = {
+	hash: string;
+	mtime: number;
+	size: number;
+	br?: boolean;
+	gz?: boolean;
+};
 
 // not Bun.main: when the built server is imported from a wrapper script rather than
 // run directly, Bun.main is the wrapper and every asset path resolves wrong
@@ -85,6 +91,46 @@ function negotiate(accept: string | null, meta: AssetMeta): "br" | "gz" | null {
 	return null;
 }
 
+/**
+ * One byte range, clamped to the file (RFC 9110 §14.1.2). `null` means the header
+ * is ignored: malformed, another unit, or several ranges (no multipart/byteranges).
+ */
+export function parse_range(
+	header: string,
+	size: number,
+): { start: number; end: number } | "unsatisfiable" | null {
+	const match = /^bytes=(\d*)-(\d*)$/i.exec(header.trim());
+	if (!match) return null;
+	const [, first = "", last = ""] = match;
+
+	if (first === "") {
+		if (last === "") return null;
+		const length = Number(last);
+		if (length === 0 || size === 0) return "unsatisfiable";
+		return { start: Math.max(0, size - length), end: size - 1 };
+	}
+
+	const start = Number(first);
+	if (last !== "" && Number(last) < start) return null;
+	if (start >= size) return "unsatisfiable";
+	return {
+		start,
+		end: last === "" ? size - 1 : Math.min(Number(last), size - 1),
+	};
+}
+
+/** If-Range takes a strong ETag or an HTTP date, never a weak validator (RFC 9110 §13.1.5). */
+function range_applies(request: Request, etag: string, mtime: number) {
+	const header = request.headers.get("if-range");
+	if (header === null) return true;
+	if (header.startsWith('"') || header.startsWith("W/")) return header === etag;
+
+	const date = Date.parse(header);
+	return (
+		Number.isFinite(date) && Math.trunc(mtime / 1000) <= Math.trunc(date / 1000)
+	);
+}
+
 function route_entries(
 	paths: string[],
 	route: RouteHandler,
@@ -102,9 +148,10 @@ function file_route(
 	const last_modified = new Date(meta.mtime).toUTCString();
 
 	const handler = (request: BunRequest) => {
-		// Bun serializes Range itself for file bodies; ranges apply to the identity representation
+		// ranges apply to the identity representation
+		const range_header = request.headers.get("range");
 		const encoding =
-			request.headers.get("range") === null
+			range_header === null
 				? negotiate(request.headers.get("accept-encoding"), meta)
 				: null;
 		const etag =
@@ -115,6 +162,7 @@ function file_route(
 			...extra_headers,
 			etag,
 			"last-modified": last_modified,
+			"accept-ranges": "bytes",
 		};
 		if (meta.br || meta.gz) response_headers.vary = "accept-encoding";
 
@@ -122,12 +170,38 @@ function file_route(
 			return new Response(null, { status: 304, headers: response_headers });
 		}
 
-		let body_file = file;
 		if (encoding !== null) {
 			response_headers["content-encoding"] = CONTENT_ENCODING[encoding];
-			body_file = `${file}.${encoding}`;
+			return new Response(Bun.file(`${file}.${encoding}`), {
+				headers: response_headers,
+			});
 		}
-		return new Response(Bun.file(body_file), { headers: response_headers });
+		if (range_header === null) {
+			return new Response(Bun.file(file), { headers: response_headers });
+		}
+
+		const range = range_applies(request, etag, meta.mtime)
+			? parse_range(range_header, meta.size)
+			: null;
+		if (range === null) {
+			// Bun applies Range itself to an on-disk file body (not to an embedded one) and
+			// knows nothing of If-Range: piping hides the file so the header stays ignored
+			return new Response(
+				Bun.file(file).stream().pipeThrough(new TransformStream()),
+				{ headers: response_headers },
+			);
+		}
+		if (range === "unsatisfiable") {
+			response_headers["content-range"] = `bytes */${meta.size}`;
+			return new Response(null, { status: 416, headers: response_headers });
+		}
+		// an explicit 206 with Content-Range is sent as is, Content-Length being the slice's
+		response_headers["content-range"] =
+			`bytes ${range.start}-${range.end}/${meta.size}`;
+		return new Response(Bun.file(file).slice(range.start, range.end + 1), {
+			status: 206,
+			headers: response_headers,
+		});
 	};
 
 	return { GET: handler };

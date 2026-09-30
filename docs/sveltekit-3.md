@@ -46,6 +46,14 @@ build/
 ./build/server
 ```
 
+Static assets and prerendered pages are served with an `ETag`, `Last-Modified`
+and `Accept-Ranges: bytes`, the same way whether they are embedded or on disk.
+A single byte `Range` gets a `206` (so `<video>` can seek without downloading
+the whole file), a range past the end a `416`, and `If-Range` is honoured.
+Multiple ranges and malformed headers are ignored and answered with the full
+body. Ranges always apply to the uncompressed file, never to a `.br` / `.gz`
+variant.
+
 ### `buildOptions.compile: false`
 
 A native (`.node`) addon like `sharp` can't be embedded in a binary. Set

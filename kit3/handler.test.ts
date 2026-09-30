@@ -1,4 +1,4 @@
-import { afterEach, expect, mock, test } from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import type { Server as BunServer } from "bun";
 
 // The templates import build-time virtual modules; stand them in here. The
@@ -6,6 +6,7 @@ import type { Server as BunServer } from "bun";
 const manifest = {
 	app_dir: "_app",
 	base: "",
+	embed: false,
 	env_prefix: "",
 	origin: undefined as string | undefined,
 };
@@ -103,4 +104,45 @@ test("a prefixed ORIGIN passes the env guard", async () => {
 	await expect(import(`./templates/env.ts?${++fresh}`)).rejects.toThrow(
 		/APP_NOPE/,
 	);
+});
+
+describe("parse_range", async () => {
+	const { parse_range } = await import("./templates/routes-util.ts");
+
+	test.each([
+		["bytes=0-9", { start: 0, end: 9 }],
+		["bytes=10-", { start: 10, end: 35 }],
+		["bytes=-5", { start: 31, end: 35 }],
+		["bytes=-100", { start: 0, end: 35 }],
+		["bytes=30-999", { start: 30, end: 35 }],
+		["bytes=35-35", { start: 35, end: 35 }],
+		["BYTES=0-0", { start: 0, end: 0 }],
+	])("%s is satisfiable", (header, expected) => {
+		expect(parse_range(header, 36)).toEqual(expected);
+	});
+
+	test.each(["bytes=36-", "bytes=100-200", "bytes=-0"])(
+		"%s is unsatisfiable",
+		(header) => {
+			expect(parse_range(header, 36)).toBe("unsatisfiable");
+		},
+	);
+
+	test.each([
+		"bytes=0-1,4-5",
+		"bytes=abc",
+		"bytes=-",
+		"bytes=9-0",
+		"bytes=1.5-3",
+		"items=0-9",
+		"0-9",
+		"",
+	])("%j is ignored", (header) => {
+		expect(parse_range(header, 36)).toBeNull();
+	});
+
+	test("nothing is satisfiable in an empty file", () => {
+		expect(parse_range("bytes=0-", 0)).toBe("unsatisfiable");
+		expect(parse_range("bytes=-5", 0)).toBe("unsatisfiable");
+	});
 });

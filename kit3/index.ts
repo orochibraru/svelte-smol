@@ -79,7 +79,13 @@ export interface AdapterOptions {
 	healthcheck?: boolean | { path?: string };
 }
 
-type AssetMeta = { hash: string; mtime: number; br?: boolean; gz?: boolean };
+type AssetMeta = {
+	hash: string;
+	mtime: number;
+	size: number;
+	br?: boolean;
+	gz?: boolean;
+};
 type File = { abs: string; rel: string };
 // the installed @sveltejs/kit devDependency is 2.x, whose types lack this 3.0 method
 type Kit3Builder = Builder & { generateServerInstance(dest: string): void };
@@ -137,11 +143,16 @@ async function hash_file(file: string) {
 	}
 }
 
-/** Bun only generates ETags for in-memory static routes, so ship our own. */
+/**
+ * Bun only generates ETags for in-memory static routes, so ship our own; the
+ * size is what byte ranges resolve against.
+ */
 async function asset_meta(file: string, precompress = false) {
+	const asset = Bun.file(file);
 	const meta: AssetMeta = {
 		hash: await hash_file(file),
-		mtime: Bun.file(file).lastModified,
+		mtime: asset.lastModified,
+		size: asset.size,
 	};
 	if (precompress) {
 		if (fs.existsSync(`${file}.br`)) meta.br = true;

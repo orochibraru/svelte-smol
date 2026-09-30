@@ -42,6 +42,7 @@ implementation. Upgrading SvelteKit is enough to switch.
 | ------------------- | --------------------------------------- | ---------------------------------------------- |
 | Adapter config      | `svelte.config.js`                      | `vite.config.js`, passed to `sveltekit()`      |
 | Static assets       | `client/` and `prerendered/` beside it  | embedded in the executable                     |
+| `Range` requests    | left to Bun, `If-Range` is ignored      | `206` / `416` and `If-Range`, embedded or not  |
 | Build options       | top level (`compile`, `target`, …)      | under `buildOptions`                           |
 | `Bun.serve` options | `serveOptions`                          | `serverOptions` (JSON-serializable only)       |
 | Public origin       | `ORIGIN` env var                        | `ORIGIN` env var, else `paths.origin`          |
