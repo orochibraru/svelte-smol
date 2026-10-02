@@ -1,5 +1,12 @@
 # Svelte Smol Adapter
 
+> [!WARNING]
+> **Deprecated.** SvelteKit 3 has an official Bun adapter,
+> [`@sveltejs/adapter-bun`](https://svelte.dev/docs/kit/adapter-bun), which
+> also compiles the app into a single executable. Migrate to it, see
+> [Migrating to `@sveltejs/adapter-bun`](#migrating-to-sveltejsadapter-bun).
+> This package only gets SvelteKit 2 fixes until the repository is archived.
+
 A [SvelteKit](https://svelte.dev/docs/kit) adapter that compiles your app into a
 **single standalone executable** with `bun build --compile`. No `node_modules`,
 no JS files to ship, just one binary plus its static assets.
@@ -32,69 +39,114 @@ The compile step runs under the Bun runtime, so build with:
 bun run vite build
 ```
 
-## SvelteKit 2 and SvelteKit 3
+## Migrating to `@sveltejs/adapter-bun`
 
-One package supports both. There is no flag to set: at build time the adapter
-checks which SvelteKit is running the build and uses the matching
-implementation. Upgrading SvelteKit is enough to switch.
+The official adapter needs SvelteKit 3 and Bun 1.4 or newer. These steps work
+from svelte-smol on either SvelteKit version.
 
-|                     | SvelteKit 2                             | SvelteKit 3 (prerelease)                       |
-| ------------------- | --------------------------------------- | ---------------------------------------------- |
-| Adapter config      | `svelte.config.js`                      | `vite.config.js`, passed to `sveltekit()`      |
-| Static assets       | `client/` and `prerendered/` beside it  | embedded in the executable                     |
-| `Range` requests    | left to Bun, `If-Range` is ignored      | `206` / `416` and `If-Range`, embedded or not  |
-| Build options       | top level (`compile`, `target`, …)      | under `buildOptions`                           |
-| `Bun.serve` options | `serveOptions`                          | `serverOptions` (JSON-serializable only)       |
-| Public origin       | `ORIGIN` env var                        | `ORIGIN` env var, else `paths.origin`          |
+1. Swap the packages:
 
-The rest of this README covers SvelteKit 2. For SvelteKit 3's options,
-environment variables and output, see [SvelteKit 3](docs/sveltekit-3.md).
+   ```bash
+   bun remove @orochibraru/svelte-smol
+   bun add -d @sveltejs/kit@^3 @sveltejs/adapter-bun
+   ```
 
-### Upgrading to SvelteKit 3
-
-1. Install SvelteKit 3: `bun add -d @sveltejs/kit@next`.
-2. Move the adapter from `svelte.config.js` into the Vite plugin:
+2. Configure the adapter in the Vite plugin, and remove `adapter` from
+   `svelte.config.js` if you were on SvelteKit 2:
 
    ```typescript
    // vite.config.js
+   import adapter from "@sveltejs/adapter-bun";
    import { sveltekit } from "@sveltejs/kit/vite";
    import { defineConfig } from "vite";
-   import adapter from "@orochibraru/svelte-smol";
 
    export default defineConfig({
-     plugins: [sveltekit({ adapter: adapter() })],
+     plugins: [
+       sveltekit({ adapter: adapter({ buildOptions: { compile: true } }) }),
+     ],
    });
    ```
 
-3. Rename your options and env vars:
+   Compiling is opt-in. Without `buildOptions.compile`, the build is a
+   Vite-built `build/index.js` run with `bun ./build`, and the app's production
+   `dependencies` are not bundled into it: ship a production `node_modules`
+   next to it. That is also the mode for native (`.node`) addons, as
+   `compile: false` was here.
 
-   | SvelteKit 2                       | SvelteKit 3                                      |
-   | --------------------------------- | ------------------------------------------------ |
-   | `compile: false`                  | `buildOptions: { compile: false }`               |
-   | `target: "bun-linux-x64"`         | `buildOptions: { compile: "bun-linux-x64" }`     |
-   | `name: "app"`                     | `buildOptions: { compile: { outfile: "app" } }`  |
-   | `bytecode`, `minify`, `sourcemap` | `buildOptions.*`                                 |
-   | `serveOptions`                    | `serverOptions` (JSON-serializable only)         |
-   | `serveAssets: false`              | removed, assets are embedded                     |
-   | `IDLE_TIMEOUT`                    | `CONNECTION_IDLE_TIMEOUT`                        |
-   | `ASSETS_DIR`                      | removed, assets are embedded                     |
+3. Build under the Bun runtime: `bun run --bun vite build`.
 
-4. Deploy the `build/server` executable on its own: it no longer needs the
-   `client/` and `prerendered/` folders next to it.
+4. Rename your options:
 
-`out`, `healthcheck` and `envPrefix` work the same on both. `precompress` too,
-except that SvelteKit 3 ignores it when compiling, since it has no asset files
-to serve. Options that belong to the other SvelteKit version fail the build instead of
-being ignored:
+   | svelte-smol, SvelteKit 2          | svelte-smol, SvelteKit 3                        | `@sveltejs/adapter-bun`                   |
+   | --------------------------------- | ----------------------------------------------- | ----------------------------------------- |
+   | `compile: true` (default)         | `buildOptions: { compile: true }` (default)     | `buildOptions: { compile: true }`         |
+   | `compile: false`                  | `buildOptions: { compile: false }`              | leave `buildOptions.compile` unset        |
+   | `target: "bun-linux-x64"`         | `buildOptions: { compile: "bun-linux-x64" }`    | same as svelte-smol on SvelteKit 3        |
+   | `name: "app"`                     | `buildOptions: { compile: { outfile: "app" } }` | same as svelte-smol on SvelteKit 3        |
+   | `bytecode`, `minify`, `sourcemap` | `buildOptions.*`                                | `buildOptions.*`                          |
+   | `serveOptions`                    | `serverOptions`                                 | `serverOptions` (JSON-serializable only)  |
+   | `serveAssets: false`              | removed                                         | removed, assets are always served         |
+   | n/a                               | `buildOptions.splitting`                        | removed                                   |
+   | `healthcheck`                     | `healthcheck`                                   | removed, see step 6                       |
 
-```text
-svelte-smol: compile not supported with SvelteKit 3. See https://github.com/orochibraru/svelte-smol/blob/main/docs/sveltekit-3.md for the option mapping.
-```
+   `out`, `precompress` and `envPrefix` keep their meaning. `precompress` is
+   still ignored when compiling.
 
-Going back to SvelteKit 2 is the same steps in reverse.
+5. Update your environment:
+   - `IDLE_TIMEOUT` becomes `CONNECTION_IDLE_TIMEOUT` (max `255`).
+   - `ASSETS_DIR`, `HEALTHCHECK_PATH` and `HEALTHCHECK_TIMEOUT` are gone.
+   - `ORIGIN` is gone. The public origin comes from `paths.origin` in the
+     SvelteKit config, fixed at build time, else from the request and the
+     forwarded headers, assuming `https` unless `PROTOCOL_HEADER` says
+     otherwise. An app served over plain HTTP with neither set fails the CSRF
+     check on every form action: set `paths.origin`, or set
+     `PROTOCOL_HEADER=x-forwarded-proto` behind a proxy that sends it.
+   - With `envPrefix`, the server refuses to start when it sees a prefixed
+     variable it doesn't know. Delete leftovers like `MY_APP_ORIGIN` or
+     `MY_APP_HEALTHCHECK_TIMEOUT`.
 
-SvelteKit 2 support will be deprecated once SvelteKit 3 is stable, and removed
-in the next major version of this package.
+6. Replace the health check. The endpoint is a regular route:
+
+   ```typescript
+   // src/routes/_health/+server.ts
+   export const prerender = false;
+
+   export const GET = () =>
+     Response.json(
+       { status: "ok" },
+       { headers: { "cache-control": "no-store" } },
+     );
+   ```
+
+   The probe is a script you compile yourself, so it still runs in an image
+   without `curl`:
+
+   ```typescript
+   // healthcheck.ts
+   const port = process.env.PORT ?? "3000";
+
+   try {
+     const response = await fetch(`http://127.0.0.1:${port}/_health`, {
+       signal: AbortSignal.timeout(2000),
+     });
+     process.exit(response.ok ? 0 : 1);
+   } catch {
+     process.exit(1);
+   }
+   ```
+
+   ```dockerfile
+   RUN bun build --compile --minify ./healthcheck.ts --outfile build/healthcheck
+   HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+     CMD ["./build/healthcheck"]
+   ```
+
+   Pass the same `--target` as `buildOptions.compile` when cross-compiling.
+
+One behaviour has no replacement: a compiled executable answers a `Range`
+request on an embedded asset with `200` and the whole file, so a `<video>`
+downloads everything before it can seek. Serve large media from a CDN or the
+proxy, or don't compile.
 
 ## Output
 
